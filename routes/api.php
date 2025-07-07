@@ -43,27 +43,3 @@ Route::middleware('auth:sanctum')->group(function () {
 
   
 });
-
-Route::get('/test-db', function () {
-    try {
-        $pdo = DB::connection()->getPdo();
-        $version = DB::select('SELECT VERSION() as version')[0]->version;
-        return response()->json([
-            'status' => 'Database connected successfully!',
-            'mysql_version' => $version,
-            'database' => config('database.connections.mysql.database'),
-            'host' => config('database.connections.mysql.host')
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'Database connection failed',
-            'error' => $e->getMessage(),
-            'config' => [
-                'host' => config('database.connections.mysql.host'),
-                'port' => config('database.connections.mysql.port'),
-                'database' => config('database.connections.mysql.database'),
-                'username' => config('database.connections.mysql.username')
-            ]
-        ], 500);
-    }
-});
