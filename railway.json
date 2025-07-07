@@ -3,6 +3,6 @@
       "command": "composer install --optimize-autoloader --no-dev"
     },
     "deploy": {
-      "command": "php artisan migrate --force && php artisan config:cache && php artisan serve --host=0.0.0.0 --port=$PORT"
+      "command": "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
     }
   }

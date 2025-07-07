@@ -15,14 +15,12 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/test', function() {
     return response()->json([
-        'upload_max_filesize' => ini_get('upload_max_filesize'),
-        'post_max_size' => ini_get('post_max_size'),
-        'max_execution_time' => ini_get('max_execution_time'),
-        'memory_limit' => ini_get('memory_limit'),
-        'storage_path_exists' => Storage::disk('public')->exists(''),
-        'storage_writable' => is_writable(storage_path('app/public')),
+        'message' => 'API is working!',
+        'timestamp' => now(),
+        'openai_configured' => !empty(config('services.openai.api_key'))
     ]);
 });
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
