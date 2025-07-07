@@ -3,5 +3,10 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return ['Laravel' => app()->version()];
+    return response()->json([
+        'message' => 'Receipt Tracker API',
+        'version' => '1.0.0',
+        'status' => 'running',
+        'api_endpoints' => '/api/*'
+    ]);
 });
