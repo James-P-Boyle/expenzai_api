@@ -4,9 +4,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return response()->json([
-        'message' => 'Receipt Tracker API',
-        'version' => '1.0.0',
-        'status' => 'running',
-        'api_endpoints' => '/api/*'
+        'status' => 'API is running',
+        'timestamp' => now(),
+        'app' => config('app.name')
     ]);
+});
+
+Route::get('/health', function () {
+    return response()->json(['status' => 'healthy']);
 });
