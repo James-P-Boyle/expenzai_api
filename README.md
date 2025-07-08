@@ -51,7 +51,7 @@ Edit `.env`:
 APP_NAME="Receipt Tracker API"
 APP_ENV=local
 APP_DEBUG=true
-APP_URL=http://receipt-tracker-api.test
+API_URL=http://receipt-tracker-api.test
 
 # Database
 DB_CONNECTION=mysql
