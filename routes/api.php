@@ -13,12 +13,21 @@ use App\Http\Controllers\Api\ReceiptController;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::get('/test', function() {
-    return response()->json([
-        'message' => 'API is working!',
-        'timestamp' => now(),
-        'openai_configured' => !empty(config('services.openai.api_key'))
-    ]);
+Route::get('/health', function () {
+    try {
+        DB::connection()->getPdo();
+        $tableCount = DB::select("SHOW TABLES");
+        return response()->json([
+            'status' => 'ok', 
+            'database' => 'connected',
+            'tables' => count($tableCount)
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error', 
+            'message' => $e->getMessage()
+        ], 500);
+    }
 });
 
 // Protected routes
