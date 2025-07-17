@@ -9,6 +9,10 @@ use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReceiptController;
 
+Route::options('{any}', function () {
+    return response('', 200);
+})->where('any', '.*');
+
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
