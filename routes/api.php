@@ -10,7 +10,11 @@ use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReceiptController;
 
 Route::options('{any}', function () {
-    return response('', 200);
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', 'https://www.expenzai.app')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept')
+        ->header('Access-Control-Allow-Credentials', 'true');
 })->where('any', '.*');
 
 // Public routes
