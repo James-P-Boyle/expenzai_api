@@ -1,4 +1,4 @@
-# Receipt Tracker API
+# Expensai
 
 A Laravel 12 REST API that powers an AI-driven expense tracking application. This API handles receipt uploads, processes them using OpenAI's GPT-4 Vision, and provides expense analytics.
 
@@ -48,7 +48,7 @@ php artisan key:generate
 Edit `.env`:
 
 ```bash
-APP_NAME="Receipt Tracker API"
+APP_NAME="Expensai"
 APP_ENV=local
 APP_DEBUG=true
 API_URL=http://receipt-tracker-api.test
