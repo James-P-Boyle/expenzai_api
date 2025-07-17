@@ -37,6 +37,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::post('/update-email', [AuthController::class, 'updateEmail']);
+    Route::delete('/delete-account', [AuthController::class, 'deleteAccount']);
+    Route::post('/request-data', [AuthController::class, 'requestData']);
     
     // Receipts - using apiResource for full CRUD
     Route::apiResource('receipts', ReceiptController::class);
