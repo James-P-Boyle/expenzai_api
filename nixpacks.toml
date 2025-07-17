@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["...", "php82"]
+
+[phases.build]
+cmds = ["composer install --no-dev"]
+
+[start]
+cmd = "php -d upload_max_filesize=10M -d post_max_size=10M -d memory_limit=256M artisan serve --host=0.0.0.0 --port=$PORT"
