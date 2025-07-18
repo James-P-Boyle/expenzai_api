@@ -23,21 +23,16 @@ Route::post('/debug-upload', function (Request $request) {
         'all_files' => $request->allFiles(),
         'content_length' => $request->header('content-length'),
         'content_type' => $request->header('content-type'),
-        'request_size' => strlen($request->getContent()),
         'php_limits' => [
             'upload_max_filesize' => ini_get('upload_max_filesize'),
             'post_max_size' => ini_get('post_max_size'),
             'memory_limit' => ini_get('memory_limit'),
-            'max_execution_time' => ini_get('max_execution_time'),
         ],
-        'server_info' => [
-            'request_method' => $request->method(),
-            'content_length_from_server' => $_SERVER['CONTENT_LENGTH'] ?? 'not set',
-            'http_content_length' => $_SERVER['HTTP_CONTENT_LENGTH'] ?? 'not set',
-        ],
-        'raw_input_info' => [
-            'input_size' => strlen(file_get_contents('php://input')),
-        ]
+        'files_info' => $request->hasFile('image') ? [
+            'name' => $request->file('image')->getClientOriginalName(),
+            'size' => $request->file('image')->getSize(),
+            'valid' => $request->file('image')->isValid(),
+        ] : null,
     ]);
 });
 
