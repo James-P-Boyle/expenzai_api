@@ -1,8 +1,21 @@
 {
+    "$schema": "https://railway.com/railway.schema.json",
     "build": {
       "command": "composer install --optimize-autoloader --no-dev"
     },
     "deploy": {
-      "command": "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
+      "command": "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT",
+      "healthcheckPath": "/api/health",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "always"
+    },
+    "variables": {
+      "UPLOAD_MAX_FILESIZE": "10M",
+      "POST_MAX_SIZE": "12M",
+      "MAX_EXECUTION_TIME": "60",
+      "MEMORY_LIMIT": "256M",
+      "RAILWAY_MAX_REQUEST_SIZE": "10M",
+      "NIXPACKS_MAX_REQUEST_SIZE": "10M",
+      "CLIENT_MAX_BODY_SIZE": "10M"
     }
   }
