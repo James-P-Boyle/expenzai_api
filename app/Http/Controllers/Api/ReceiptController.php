@@ -26,6 +26,17 @@ class ReceiptController extends Controller
 
     public function store(Request $request)
     {
+           // Force PHP limits
+    ini_set('upload_max_filesize', '20M');
+    ini_set('post_max_size', '25M');
+    ini_set('memory_limit', '512M');
+    
+    // Log what we actually get
+    Log::info('Upload limits check', [
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'memory_limit' => ini_get('memory_limit'),
+    ]);
         try {
             // Check if file was uploaded
             if (!$request->hasFile('image')) {
