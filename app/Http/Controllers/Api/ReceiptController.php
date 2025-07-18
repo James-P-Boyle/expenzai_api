@@ -29,13 +29,7 @@ class ReceiptController extends Controller
         try {
             // Check if file was uploaded
             if (!$request->hasFile('image')) {
-                
-                if (!$request->hasFile('image')) {
-                    return response()->json([
-                        'message' => 'Please select an image file to upload.',
-                        'errors' => ['image' => ['No image file was provided.']]
-                    ], 422);
-                }
+
 
                 return response()->json([
                     'message' => 'Please select an image file to upload.',
