@@ -1,3 +1,8 @@
+[variables]
+UPLOAD_MAX_FILESIZE = "10M"
+POST_MAX_SIZE = "12M"
+MEMORY_LIMIT = "256M"
+
 [phases.setup]
 nixPkgs = ["...", "php82"]
 
@@ -5,4 +10,4 @@ nixPkgs = ["...", "php82"]
 cmds = ["composer install --no-dev"]
 
 [start]
-cmd = "php -d upload_max_filesize=10M -d post_max_size=10M -d memory_limit=256M artisan serve --host=0.0.0.0 --port=$PORT"
+cmd = "php -d upload_max_filesize=10M -d post_max_size=12M -d memory_limit=256M -d max_execution_time=60 -d max_input_time=60 artisan serve --host=0.0.0.0 --port=$PORT"
