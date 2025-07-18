@@ -29,12 +29,11 @@ class ReceiptController extends Controller
         try {
             // Check if file was uploaded
             if (!$request->hasFile('image')) {
-                // Check if this is a PHP upload limit issue
-                if ($request->has('image')) {
-                    $uploadMax = ini_get('upload_max_filesize');
+                
+                if (!$request->hasFile('image')) {
                     return response()->json([
-                        'message' => "File too large. Maximum upload size is {$uploadMax}.",
-                        'errors' => ['image' => ["Your file exceeds the {$uploadMax} upload limit. Please choose a smaller image."]]
+                        'message' => 'Please select an image file to upload.',
+                        'errors' => ['image' => ['No image file was provided.']]
                     ], 422);
                 }
 
