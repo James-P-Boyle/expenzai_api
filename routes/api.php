@@ -17,6 +17,30 @@ Route::options('{any}', function () {
         ->header('Access-Control-Allow-Credentials', 'true');
 })->where('any', '.*');
 
+Route::post('/debug-upload', function (Request $request) {
+    return response()->json([
+        'has_file' => $request->hasFile('image'),
+        'all_files' => $request->allFiles(),
+        'content_length' => $request->header('content-length'),
+        'content_type' => $request->header('content-type'),
+        'request_size' => strlen($request->getContent()),
+        'php_limits' => [
+            'upload_max_filesize' => ini_get('upload_max_filesize'),
+            'post_max_size' => ini_get('post_max_size'),
+            'memory_limit' => ini_get('memory_limit'),
+            'max_execution_time' => ini_get('max_execution_time'),
+        ],
+        'server_info' => [
+            'request_method' => $request->method(),
+            'content_length_from_server' => $_SERVER['CONTENT_LENGTH'] ?? 'not set',
+            'http_content_length' => $_SERVER['HTTP_CONTENT_LENGTH'] ?? 'not set',
+        ],
+        'raw_input_info' => [
+            'input_size' => strlen(file_get_contents('php://input')),
+        ]
+    ]);
+});
+
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
