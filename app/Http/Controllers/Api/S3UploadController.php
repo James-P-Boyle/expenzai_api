@@ -80,7 +80,7 @@ class S3UploadController extends Controller
         try {
             $receipts = [];
             
-            foreach ($request->files as $fileData) {
+            foreach ($request->input('files') as $fileData) {
                 // Verify file exists in S3
                 if (!Storage::disk('s3')->exists($fileData['file_key'])) {
                     return response()->json([
@@ -127,7 +127,7 @@ class S3UploadController extends Controller
             Log::error('Receipt confirmation failed', [
                 'user_id' => $request->user()->id,
                 'error' => $e->getMessage(),
-                'files_count' => count($request->files ?? []),
+                'files_count' => count($request->input('files', [])),
             ]);
 
             return response()->json([

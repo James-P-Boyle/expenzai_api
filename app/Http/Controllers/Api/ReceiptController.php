@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use App\Jobs\ProcessReceiptJob;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
@@ -20,7 +21,7 @@ class ReceiptController extends Controller
             ->with(['items'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
-
+        Log::info($receipts);
         return response()->json($receipts);
     }
 

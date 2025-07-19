@@ -12,9 +12,12 @@ class Receipt extends Model
     protected $fillable = [
         'user_id',
         'image_path',
-        'total_amount',
+        'original_filename',
+        'file_size',
+        'storage_disk',
         'store_name',
         'receipt_date',
+        'total_amount',
         'status',
         'week_of'
     ];

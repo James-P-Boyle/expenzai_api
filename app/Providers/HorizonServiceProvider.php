@@ -70,4 +70,4 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
             // ]);
         });
     }
-} 
+}

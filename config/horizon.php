@@ -70,7 +70,7 @@ return [
     |
     */
 
-    'middleware' => app()->environment('production') ? [] : ['web'],
+    'middleware' => ['auth:sanctum'],
 
     /*
     |--------------------------------------------------------------------------
