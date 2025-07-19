@@ -95,13 +95,29 @@ class ProcessReceiptJob implements ShouldQueue
     private function getOptimizedImage(): string
     {
         $imagePath = $this->receipt->image_path;
-        $originalImageContent = Storage::disk('public')->get($imagePath);
+        
+        // Check which storage disk to use
+        $disk = $this->receipt->storage_disk ?? 'public';
+        
+        try {
+            $originalImageContent = Storage::disk($disk)->get($imagePath);
+        } catch (\Exception $e) {
+            Log::error('Failed to read image from storage', [
+                'receipt_id' => $this->receipt->id,
+                'disk' => $disk,
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+
         $originalSize = strlen($originalImageContent);
 
         Log::info('Original image stats', [
             'receipt_id' => $this->receipt->id,
             'original_size_kb' => $originalSize / 1024,
-            'path' => $imagePath
+            'path' => $imagePath,
+            'disk' => $disk
         ]);
 
         // If image is already small enough (under 500KB), return as-is
