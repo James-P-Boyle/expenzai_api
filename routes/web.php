@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Models\Receipt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 // Route::get('/simple-debug', function () {
@@ -74,6 +75,15 @@ use Illuminate\Support\Facades\Storage;
 //         'loaded_env_file' => app()->environmentFilePath(),
 //     ]);
 // });
+Route::get('/debug-redis', function () {
+    try {
+        $redis = Redis::connection();
+        $redis->ping();
+        return response()->json(['redis' => 'connected']);
+    } catch (\Exception $e) {
+        return response()->json(['redis' => 'failed', 'error' => $e->getMessage()]);
+    }
+});
 Route::get('/', function () {
     return response()->json([
         'status' => 'Expensai',
