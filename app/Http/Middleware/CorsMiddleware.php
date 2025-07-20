@@ -12,7 +12,8 @@ class CorsMiddleware
         $allowedOrigins = [
             'https://www.expenzai.app',
             'https://expenzai.app',
-            'http://localhost:3000' 
+            'http://localhost:3000',
+            'http://localhost:3001' 
         ];
         
         $origin = $request->headers->get('Origin');
