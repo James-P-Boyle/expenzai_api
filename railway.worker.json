@@ -1,7 +1,0 @@
-{
-    "$schema": "https://railway.com/railway.schema.json",
-    "deploy": {
-      "startCommand": "php artisan queue:work --verbose --tries=3 --timeout=120",
-      "restartPolicyType": "ALWAYS"
-    }
-}
