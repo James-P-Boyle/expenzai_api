@@ -4,7 +4,7 @@ POST_MAX_SIZE = "12M"
 MEMORY_LIMIT = "256M"
 
 [phases.setup]
-nixPkgs = ["...", "php82", "php82Extensions.redis"]
+nixPkgs = ["...", "php82"]
 
 [phases.build]
 cmds = ["composer install --no-dev"]
