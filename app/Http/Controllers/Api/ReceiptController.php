@@ -6,9 +6,10 @@ use App\Models\Receipt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use App\Jobs\ProcessReceiptJob;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
@@ -109,6 +110,11 @@ class ReceiptController extends Controller
             // Dispatch AI processing job
             ProcessReceiptJob::dispatch($receipt);
 
+            Log::info('Job dispatched', [
+                'receipt_id' => $receipt->id,
+                'queue_connection' => config('queue.default')
+            ]);
+
             Log::info('Receipt uploaded and processing started', [
                 'user_id' => $request->user()->id,
                 'receipt_id' => $receipt->id,
@@ -170,5 +176,17 @@ class ReceiptController extends Controller
         ]);
 
         return response()->json(['message' => 'Receipt deleted successfully']);
+    }
+
+    public function queueStatus()
+    {
+        $pendingJobs = DB::table('jobs')->count();
+        $failedJobs = DB::table('failed_jobs')->count();
+        
+        return response()->json([
+            'pending_jobs' => $pendingJobs,
+            'failed_jobs' => $failedJobs,
+            'queue_connection' => config('queue.default')
+        ]);
     }
 }

@@ -25,16 +25,18 @@ class ProcessReceiptJob implements ShouldQueue
 
     public function handle(): void
     {
+        Log::info('ProcessReceiptJob started', [
+            'receipt_id' => $this->receipt->id,
+            'attempt' => $this->attempts()
+        ]);
+
         try {
             // Get optimized base64 encoded image
             $base64Image = $this->getOptimizedImage();
 
-            Log::info('Sending optimized image to OpenAI', [
-                'receipt_id' => $this->receipt->id,
-                'optimized_size_kb' => strlen($base64Image) / 1024
-            ]);
+            Log::info('About to call OpenAI API', ['receipt_id' => $this->receipt->id]);
 
-            $response = Http::timeout(120)
+            $response = Http::timeout(180)
                 ->withHeaders([
                     'Authorization' => 'Bearer ' . config('services.openai.api_key'),
                     'Content-Type' => 'application/json',
@@ -82,10 +84,18 @@ class ProcessReceiptJob implements ShouldQueue
                 $this->receipt->update(['status' => 'failed']);
             }
 
+            Log::info('OpenAI API response received', [
+                'receipt_id' => $this->receipt->id,
+                'status_code' => $response->status(),
+                'successful' => $response->successful()
+            ]);
+        
         } catch (\Exception $e) {
             Log::error('Receipt Processing Error', [
                 'receipt_id' => $this->receipt->id,
-                'error' => $e->getMessage()
+                'attempt' => $this->attempts(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             $this->receipt->update(['status' => 'failed']);
