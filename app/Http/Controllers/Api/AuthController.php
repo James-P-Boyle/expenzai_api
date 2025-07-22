@@ -60,7 +60,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->tokens()->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
     }
@@ -122,7 +122,7 @@ class AuthController extends Controller
             // Generate a JSON file
             $fileName = 'user_data_' . $user->id . '_' . time() . '.json';
             $fileContent = json_encode($data, JSON_PRETTY_PRINT);
-            Log::info('Attempting to store file', ['file' => $fileName, 'disk' => Storage::disk('local')->getDriver()->getAdapter()->getPathPrefix()]);
+            Log::info('Attempting to store file', ['file' => $fileName, 'path' => storage_path('app/')]);
 
             $stored = Storage::disk('local')->put($fileName, $fileContent);
 
