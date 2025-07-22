@@ -7,8 +7,18 @@ use App\Models\User;
 
 class ReceiptItemPolicy
 {
-    public function update(User $user, ReceiptItem $item): bool
+    public function view(User $user, ReceiptItem $receiptItem): bool
     {
-        return $user->id === $item->receipt->user_id;
+        return $user->id === $receiptItem->receipt->user_id;
+    }
+
+    public function update(User $user, ReceiptItem $receiptItem): bool
+    {
+        return $user->id === $receiptItem->receipt->user_id;
+    }
+
+    public function delete(User $user, ReceiptItem $receiptItem): bool
+    {
+        return $user->id === $receiptItem->receipt->user_id;
     }
 }

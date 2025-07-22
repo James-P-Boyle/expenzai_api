@@ -22,9 +22,14 @@ class ReceiptItem extends Model
     
     protected $appends = ['formatted_price'];
 
-    public function receipt(): BelongsTo
+    public function receipt()
     {
         return $this->belongsTo(Receipt::class);
+    }
+
+    public function user()
+    {
+        return $this->hasOneThrough(User::class, Receipt::class, 'id', 'id', 'receipt_id', 'user_id');
     }
 
     public function categoryModel(): BelongsTo

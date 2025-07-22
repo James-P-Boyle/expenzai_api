@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReceiptController;
 use App\Http\Controllers\Api\S3UploadController;
+use App\Http\Controllers\Api\CategoryController;
 
 // Route::options('{any}', function () {
 //     return response('', 200)
@@ -74,7 +75,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Receipts 
     Route::apiResource('receipts', ReceiptController::class);
     
+    // Categories
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/categories/weekly', [CategoryController::class, 'weekly']);
+    Route::get('/categories/{category}', [CategoryController::class, 'show']);
+    
     // Items (for manual editing)
+    Route::get('/items/{item}', [ItemController::class, 'show']);
     Route::put('/items/{item}', [ItemController::class, 'update']);
     
     // Expenses & Analytics
