@@ -3,7 +3,7 @@
 use App\Models\User;
 use App\Models\Receipt;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis;
+// use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 // Route::get('/simple-debug', function () {
