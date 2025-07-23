@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \App\Http\Middleware\CorsMiddleware::class,
         ]);
+        $middleware->alias([
+            'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
+            'upload.limits' => \App\Http\Middleware\CheckUploadLimits::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

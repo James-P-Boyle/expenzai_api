@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use App\Models\Receipt;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Notifications\WelcomeUser;
@@ -23,7 +24,10 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'session_id' => 'nullable|string|max:100', // Optional session ID for anonymous receipts
         ]);
+    
+        $sessionId = $request->input('session_id');
     
         $user = User::create([
             'name' => $request->name,
@@ -40,17 +44,41 @@ class AuthController extends Controller
             'email_verification_token' => $verificationToken,
         ]);
     
+        // Transfer anonymous receipts to new user account
+        $transferredReceipts = 0;
+        if ($sessionId) {
+            $transferredReceipts = Receipt::where('session_id', $sessionId)
+                                    ->whereNull('user_id')
+                                    ->update([
+                                        'user_id' => $user->id,
+                                        'session_id' => null
+                                    ]);
+            
+            if ($transferredReceipts > 0) {
+                Log::info('Anonymous receipts transferred to new user', [
+                    'user_id' => $user->id,
+                    'session_id' => $sessionId,
+                    'transferred_count' => $transferredReceipts,
+                ]);
+            }
+        }
+    
         // Send welcome email to user
         $user->notify(new WelcomeUser($verificationToken));
-
-        // Send notification to admin
-        Notification::route('mail', env('ADMIN_EMAIL'))->notify(new UserRegistered($user));
-
+    
+        // Send notification to admin (include transfer info)
+        $adminNotification = new UserRegistered($user);
+        if ($transferredReceipts > 0) {
+            $adminNotification->transferredReceipts = $transferredReceipts;
+        }
+        Notification::route('mail', env('ADMIN_EMAIL'))->notify($adminNotification);
+    
         return response()->json([
             'user' => $user,
             'token' => $token,
             'message' => 'Registration successful! Please check your email to verify your account.',
             'email_verified' => false,
+            'transferred_receipts' => $transferredReceipts,
         ], 201);
     }
 

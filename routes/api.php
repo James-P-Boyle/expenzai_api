@@ -13,47 +13,46 @@ use App\Http\Controllers\Api\S3UploadController;
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/debug-verification', function (Request $request) {
-    $email = $request->get('email');
-    $token = $request->get('token');
-    
-    $user = \App\Models\User::where('email', $email)->first();
-    
-    if (!$user) {
-        return response()->json(['error' => 'User not found', 'email' => $email]);
-    }
-    
-    return response()->json([
-        'user_found' => true,
-        'user_email' => $user->email,
-        'stored_token' => $user->email_verification_token,
-        'provided_token' => $token,
-        'tokens_match' => $user->email_verification_token === $token,
-        'already_verified' => !is_null($user->email_verified_at),
-        'email_verified_at' => $user->email_verified_at,
-        'token_length_stored' => strlen($user->email_verification_token ?? ''),
-        'token_length_provided' => strlen($token ?? ''),
-    ]);
-});
 Route::get('/verify-email', [AuthController::class, 'verifyEmail']);
-Route::middleware('auth:sanctum')->post('/resend-verification', [AuthController::class, 'resendVerification']);
 
-// Protected routes
+// Anonymous upload routes
+Route::post('/anonymous/upload/presigned-url', [S3UploadController::class, 'getPresignedUrlAnonymous']);
+Route::post('/anonymous/upload/confirm', [S3UploadController::class, 'confirmUploadAnonymous']);
+Route::get('/anonymous/receipts/{sessionId}', [ReceiptController::class, 'getAnonymousReceipts']);
+Route::get('/anonymous/receipts/{sessionId}/{receiptId}', [ReceiptController::class, 'getAnonymousReceipt']);
+
+// Protected routes that don't require verification
 Route::middleware('auth:sanctum')->group(function () {
-    // Auth
+
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+    Route::post('/resend-verification', [AuthController::class, 'resendVerification']);
 
+    // Upload routes (check limits but allow unverified users to see upload page)
+    Route::middleware('upload.limits')->group(function () {
+        Route::post('/upload/presigned-url', [S3UploadController::class, 'getPresignedUrl']);
+        Route::post('/upload/confirm', [S3UploadController::class, 'confirmUpload']);
+    });
+
+    // Receipt viewing (allow unverified - they can see their uploads)
+    Route::get('/receipts', [ReceiptController::class, 'index']);
+    Route::get('/receipts/{receipt}', [ReceiptController::class, 'show']);
+});
+
+// VERIFIED USERS ONLY - Full dashboard access
+Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+    // Account management
     Route::post('/update-email', [AuthController::class, 'updateEmail']);
     Route::delete('/delete-account', [AuthController::class, 'deleteAccount']);
     Route::post('/request-data', [AuthController::class, 'requestData']);
     
-    // Receipts 
-    Route::apiResource('receipts', ReceiptController::class);
+    // Receipt management (editing/deleting)
+    Route::put('/receipts/{receipt}', [ReceiptController::class, 'update']);
+    Route::delete('/receipts/{receipt}', [ReceiptController::class, 'destroy']);
     
-    // Categories
+    // Categories (full dashboard features)
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/categories/weekly', [CategoryController::class, 'weekly']);
     Route::get('/categories/{category}', [CategoryController::class, 'show']);
@@ -62,14 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/items/{item}', [ItemController::class, 'show']);
     Route::put('/items/{item}', [ItemController::class, 'update']);
     
-    // Expenses & Analytics
+    // Expenses & Analytics (verified users only)
     Route::get('/expenses/weekly', [ExpenseController::class, 'weekly']);
     Route::get('/expenses/summary', [ExpenseController::class, 'summary']);
-
-    // Image upload
-    Route::post('/upload/presigned-url', [S3UploadController::class, 'getPresignedUrl']);
-    Route::post('/upload/confirm', [S3UploadController::class, 'confirmUpload']);
-  
 });
 
 // DEBUG ROUTES 
@@ -144,4 +138,27 @@ Route::middleware('auth:sanctum')->group(function () {
 //     } catch (\Exception $e) {
 //         return response()->json(['error' => $e->getMessage()], 500);
 //     }
+// });
+
+// Route::get('/debug-verification', function (Request $request) {
+//     $email = $request->get('email');
+//     $token = $request->get('token');
+    
+//     $user = \App\Models\User::where('email', $email)->first();
+    
+//     if (!$user) {
+//         return response()->json(['error' => 'User not found', 'email' => $email]);
+//     }
+    
+//     return response()->json([
+//         'user_found' => true,
+//         'user_email' => $user->email,
+//         'stored_token' => $user->email_verification_token,
+//         'provided_token' => $token,
+//         'tokens_match' => $user->email_verification_token === $token,
+//         'already_verified' => !is_null($user->email_verified_at),
+//         'email_verified_at' => $user->email_verified_at,
+//         'token_length_stored' => strlen($user->email_verification_token ?? ''),
+//         'token_length_provided' => strlen($token ?? ''),
+//     ]);
 // });

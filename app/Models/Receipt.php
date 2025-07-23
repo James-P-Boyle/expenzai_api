@@ -11,6 +11,7 @@ class Receipt extends Model
 {
     protected $fillable = [
         'user_id',
+        'session_id',
         'image_path',
         'original_filename',
         'file_size',

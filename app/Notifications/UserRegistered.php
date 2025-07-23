@@ -13,6 +13,7 @@ class UserRegistered extends Notification
     use Queueable;
 
     public $user;
+    public $transferredReceipts = 0;
 
     /**
      * Create a new notification instance.

@@ -26,6 +26,22 @@ class ReceiptController extends Controller
         return response()->json($receipts);
     }
 
+    public function getAnonymousReceipts($sessionId)
+    {
+        $receipts = Receipt::where('session_id', $sessionId)
+                        ->whereNull('user_id')
+                        ->with('items')
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+        return response()->json([
+            'data' => $receipts,
+            'session_id' => $sessionId,
+            'total_count' => $receipts->count(),
+            'remaining_uploads' => max(0, 3 - $receipts->count()),
+        ]);
+    }
+
     public function store(Request $request)
     {
         try {
@@ -188,5 +204,22 @@ class ReceiptController extends Controller
             'failed_jobs' => $failedJobs,
             'queue_connection' => config('queue.default')
         ]);
+    }
+
+    public function getAnonymousReceipt($sessionId, $receiptId)
+    {
+        $receipt = Receipt::where('session_id', $sessionId)
+                        ->where('id', $receiptId)
+                        ->whereNull('user_id')
+                        ->with('items')
+                        ->first();
+
+        if (!$receipt) {
+            return response()->json([
+                'message' => 'Receipt not found or access denied.'
+            ], 404);
+        }
+
+        return response()->json($receipt);
     }
 }
