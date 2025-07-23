@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -98,4 +99,9 @@ Route::get('/debug/failed-jobs', function () {
     });
     
     return response()->json($failedJobs);
+});
+
+Route::get('/test-logging', function () {
+    Log::info('🔥 TEST LOG - Railway errorlog channel');
+    return response()->json(['message' => 'Check Railway logs!']);
 });
