@@ -86,3 +86,16 @@ Route::get('/debug/queue', function () {
         'queue_connection' => config('queue.default'),
     ]);
 });
+Route::get('/debug/failed-jobs', function () {
+    $failedJobs = DB::table('failed_jobs')->get()->map(function ($job) {
+        return [
+            'id' => $job->id,
+            'queue' => $job->queue,
+            'exception' => substr($job->exception, 0, 500), // First 500 chars
+            'failed_at' => $job->failed_at,
+            'payload' => json_decode($job->payload, true)['displayName'] ?? 'Unknown'
+        ];
+    });
+    
+    return response()->json($failedJobs);
+});
