@@ -65,7 +65,13 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     Route::get('/expenses/weekly', [ExpenseController::class, 'weekly']);
     Route::get('/expenses/summary', [ExpenseController::class, 'summary']);
 });
-
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'timestamp' => now(),
+        'service' => 'expenzai-api'
+    ]);
+});
 // DEBUG ROUTES 
 
 // // Test email forwarding route
