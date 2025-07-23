@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\User;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
@@ -20,18 +21,61 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
         ]);
-
+    
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'user_tier' => 'basic', // New users start as basic (unverified)
         ]);
-
+    
         $token = $user->createToken('auth-token')->plainTextToken;
+    
+        // Generate email verification token
+        $verificationToken = Str::random(64);
+        $user->update([
+            'email_verification_token' => $verificationToken,
+        ]);
+    
+        // Send verification email to user
+        $verificationUrl = env('FRONTEND_URL') . '/verify-email?token=' . $verificationToken . '&email=' . urlencode($user->email);
+        
+        Mail::raw("Welcome to ExpenzAI! 🎉\n\n" .
+            "Hi {$user->name},\n\n" .
+            "Thanks for signing up! To complete your registration and access all features, please verify your email address by clicking the link below:\n\n" .
+            $verificationUrl . "\n\n" .
+            "This link will expire in 24 hours.\n\n" .
+            "If you didn't create this account, you can safely ignore this email.\n\n" .
+            "Best regards,\n" .
+            "The ExpenzAI Team",
+            function ($message) use ($user) {
+                $message->to($user->email)
+                       ->from('contact@expenzai.app', 'ExpenzAI')
+                       ->subject('Verify Your Email - ExpenzAI');
+            }
+        );
 
+        Mail::raw("🎉 New ExpenzAI User Signup!\n\n" .
+            "👤 Name: {$user->name}\n" .
+            "📧 Email: {$user->email}\n" .
+            "🆔 User ID: {$user->id}\n" .
+            "🕐 Signup Time: " . now()->format('Y-m-d H:i:s T') . "\n" .
+            "🌍 Timezone: " . now()->timezoneName . "\n" .
+            "📊 Total Users: " . \App\Models\User::count() . "\n\n" .
+            "⚠️ Email verification pending\n" .
+            "View user: https://api.expenzai.app/admin/users/{$user->id}",
+            function ($message) use ($user) {
+                $message->to(env('ADMIN_EMAIL'))
+                       ->from('contact@expenzai.app', 'ExpenzAI')
+                       ->subject('🎉 New ExpenzAI User Signup - ' . $user->name);
+            }
+        );
+    
         return response()->json([
             'user' => $user,
             'token' => $token,
+            'message' => 'Registration successful! Please check your email to verify your account.',
+            'email_verified' => false,
         ], 201);
     }
 
@@ -158,5 +202,100 @@ class AuthController extends Controller
             ]);
             return response()->json(['message' => 'Failed to process data export request'], 500);
         }
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+            'email' => 'required|email',
+        ]);
+
+        $user = User::where('email', $request->email)
+                    ->where('email_verification_token', $request->token)
+                    ->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Invalid verification token or email.',
+                'error' => 'verification_failed'
+            ], 400);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Email already verified.',
+                'verified' => true
+            ], 200);
+        }
+
+        $user->markEmailAsVerified();
+        $user->email_verification_token = null; // Clear the token
+        $user->save();
+
+        // Send notification to admin about verification
+        Mail::raw("✅ Email Verified!\n\n" .
+            "👤 Name: {$user->name}\n" .
+            "📧 Email: {$user->email}\n" .
+            "🆔 User ID: {$user->id}\n" .
+            "🕐 Verified Time: " . now()->format('Y-m-d H:i:s T') . "\n" .
+            "🎯 Tier: {$user->user_tier}\n\n" .
+            "User now has full access to ExpenzAI!",
+            function ($message) use ($user) {
+                $message->to(env('ADMIN_EMAIL'))
+                    ->from('contact@expenzai.app', 'ExpenzAI')
+                    ->subject('✅ Email Verified - ' . $user->name);
+            }
+        );
+
+        return response()->json([
+            'message' => 'Email verified successfully! You now have full access to ExpenzAI.',
+            'verified' => true,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'email_verified_at' => $user->email_verified_at,
+                'user_tier' => $user->user_tier,
+            ]
+        ], 200);
+    }
+
+    public function resendVerification(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Email already verified.'
+            ], 400);
+        }
+
+        // Generate new verification token
+        $verificationToken = Str::random(64);
+        $user->update([
+            'email_verification_token' => $verificationToken,
+        ]);
+
+        // Send verification email
+        $verificationUrl = env('FRONTEND_URL') . '/verify-email?token=' . $verificationToken . '&email=' . urlencode($user->email);
+        
+        Mail::raw("Verify Your Email - ExpenzAI 📧\n\n" .
+            "Hi {$user->name},\n\n" .
+            "Here's your new email verification link:\n\n" .
+            $verificationUrl . "\n\n" .
+            "This link will expire in 24 hours.\n\n" .
+            "Best regards,\n" .
+            "The ExpenzAI Team",
+            function ($message) use ($user) {
+                $message->to($user->email)
+                    ->from('contact@expenzai.app', 'ExpenzAI')
+                    ->subject('Verify Your Email - ExpenzAI');
+            }
+        );
+
+        return response()->json([
+            'message' => 'Verification email sent!'
+        ], 200);
     }
 }
