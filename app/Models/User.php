@@ -61,6 +61,60 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Receipt::class);
     }
 
+    /**
+     * Check if user can upload receipts based on their tier limits
+     */
+    public function canUpload(): bool
+    {
+        $uploadLimits = [
+            'free' => 8,      // 8 receipts per month
+            'premium' => 30,  // 30 receipts per month
+            'pro' => -1,       // unlimited
+        ];
+
+        $userTier = $this->user_tier ?? 'free';
+        $monthlyLimit = $uploadLimits[$userTier] ?? $uploadLimits['free'];
+
+        // Unlimited uploads for pro tier
+        if ($monthlyLimit === -1) {
+            return true;
+        }
+
+        // Count uploads this month
+        $uploadsThisMonth = $this->receipts()
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+
+        return $uploadsThisMonth < $monthlyLimit;
+    }
+
+    /**
+     * Get remaining uploads for current month
+     */
+    public function getRemainingUploads(): int
+    {
+        $uploadLimits = [
+            'free' => 8,     
+            'premium' => 30,  
+            'pro' => -1,// unlimited
+        ];
+
+        $userTier = $this->user_tier ?? 'free';
+        $monthlyLimit = $uploadLimits[$userTier] ?? $uploadLimits['free'];
+
+        if ($monthlyLimit === -1) {
+            return -1;
+        }
+
+        $uploadsThisMonth = $this->receipts()
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+
+        return max(0, $monthlyLimit - $uploadsThisMonth);
+    }
+
     public function isAdmin(): bool
     {
         return $this->is_admin;
