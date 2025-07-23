@@ -13,7 +13,28 @@ use App\Http\Controllers\Api\S3UploadController;
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
+Route::get('/debug-verification', function (Request $request) {
+    $email = $request->get('email');
+    $token = $request->get('token');
+    
+    $user = \App\Models\User::where('email', $email)->first();
+    
+    if (!$user) {
+        return response()->json(['error' => 'User not found', 'email' => $email]);
+    }
+    
+    return response()->json([
+        'user_found' => true,
+        'user_email' => $user->email,
+        'stored_token' => $user->email_verification_token,
+        'provided_token' => $token,
+        'tokens_match' => $user->email_verification_token === $token,
+        'already_verified' => !is_null($user->email_verified_at),
+        'email_verified_at' => $user->email_verified_at,
+        'token_length_stored' => strlen($user->email_verification_token ?? ''),
+        'token_length_provided' => strlen($token ?? ''),
+    ]);
+});
 Route::get('/verify-email', [AuthController::class, 'verifyEmail']);
 Route::middleware('auth:sanctum')->post('/resend-verification', [AuthController::class, 'resendVerification']);
 

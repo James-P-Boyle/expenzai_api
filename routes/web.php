@@ -75,15 +75,29 @@ use Illuminate\Support\Facades\Storage;
 //         'loaded_env_file' => app()->environmentFilePath(),
 //     ]);
 // });
-Route::get('/debug-redis', function () {
-    try {
-        $redis = Redis::connection();
-        $redis->ping();
-        return response()->json(['redis' => 'connected']);
-    } catch (\Exception $e) {
-        return response()->json(['redis' => 'failed', 'error' => $e->getMessage()]);
-    }
+// Email preview route (remove in production)
+Route::get('/preview-welcome-email', function () {
+    $fakeUser = new \App\Models\User([
+        'name' => 'John Doe',
+        'email' => 'john@example.com'
+    ]);
+    
+    $verificationUrl = 'https://www.expenzai.app/verify-email?token=preview-token-123&email=john@example.com';
+    
+    return view('emails.welcome', [
+        'user' => $fakeUser,
+        'verificationUrl' => $verificationUrl
+    ]);
 });
+// Route::get('/debug-redis', function () {
+//     try {
+//         $redis = Redis::connection();
+//         $redis->ping();
+//         return response()->json(['redis' => 'connected']);
+//     } catch (\Exception $e) {
+//         return response()->json(['redis' => 'failed', 'error' => $e->getMessage()]);
+//     }
+// });
 Route::get('/', function () {
     return response()->json([
         'status' => 'Expensai',

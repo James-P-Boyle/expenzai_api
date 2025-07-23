@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Notifications\WelcomeUser;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use App\Notifications\UserRegistered;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -37,40 +40,12 @@ class AuthController extends Controller
             'email_verification_token' => $verificationToken,
         ]);
     
-        // Send verification email to user
-        $verificationUrl = env('FRONTEND_URL') . '/verify-email?token=' . $verificationToken . '&email=' . urlencode($user->email);
-        
-        Mail::raw("Welcome to ExpenzAI! 🎉\n\n" .
-            "Hi {$user->name},\n\n" .
-            "Thanks for signing up! To complete your registration and access all features, please verify your email address by clicking the link below:\n\n" .
-            $verificationUrl . "\n\n" .
-            "This link will expire in 24 hours.\n\n" .
-            "If you didn't create this account, you can safely ignore this email.\n\n" .
-            "Best regards,\n" .
-            "The ExpenzAI Team",
-            function ($message) use ($user) {
-                $message->to($user->email)
-                       ->from('contact@expenzai.app', 'ExpenzAI')
-                       ->subject('Verify Your Email - ExpenzAI');
-            }
-        );
+        // Send welcome email to user
+        $user->notify(new WelcomeUser($verificationToken));
 
-        Mail::raw("🎉 New ExpenzAI User Signup!\n\n" .
-            "👤 Name: {$user->name}\n" .
-            "📧 Email: {$user->email}\n" .
-            "🆔 User ID: {$user->id}\n" .
-            "🕐 Signup Time: " . now()->format('Y-m-d H:i:s T') . "\n" .
-            "🌍 Timezone: " . now()->timezoneName . "\n" .
-            "📊 Total Users: " . \App\Models\User::count() . "\n\n" .
-            "⚠️ Email verification pending\n" .
-            "View user: https://api.expenzai.app/admin/users/{$user->id}",
-            function ($message) use ($user) {
-                $message->to(env('ADMIN_EMAIL'))
-                       ->from('contact@expenzai.app', 'ExpenzAI')
-                       ->subject('🎉 New ExpenzAI User Signup - ' . $user->name);
-            }
-        );
-    
+        // Send notification to admin
+        Notification::route('mail', env('ADMIN_EMAIL'))->notify(new UserRegistered($user));
+
         return response()->json([
             'user' => $user,
             'token' => $token,
