@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -73,100 +74,15 @@ Route::get('/health', function () {
         'service' => 'expenzai-api'
     ]);
 });
-//
+
 // DEBUG ROUTES 
-
-// // Test email forwarding route
-// Route::get('/test-email-forwarding', function () {
-//     try {
-//         Mail::raw('This is a test of email forwarding from ExpenzAI! If you receive this at jamesboyle9292@gmail.com, then forwarding is working perfectly.', function ($message) {
-//             $message->to('contact@expenzai.app')  
-//                    ->from('contact@expenzai.app', 'ExpenzAI') 
-//                    ->subject('Email Forwarding Test - ExpenzAI');
-//         });
-        
-//         return response()->json(['message' => 'Forwarding test email sent to contact@expenzai.app']);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'error' => 'Failed to send email',
-//             'message' => $e->getMessage()
-//         ], 500);
-//     }
-// });
-
-// Route::get('/test-email', function () {
-//     try {
-//         Mail::raw('Test email from ExpenzAI backend via Resend!', function ($message) {
-//             $message->to('jamesboyle9292@gmail.com')
-//                    ->from('contact@expenzai.app', 'ExpenzAI')
-//                    ->subject('Resend Test Email');
-//         });
-        
-//         return response()->json(['message' => 'Email sent successfully!']);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'error' => 'Failed to send email',
-//             'message' => $e->getMessage()
-//         ], 500);
-//     }
-// });
-// Route::get('/health', function () {
-//     try {
-//         DB::connection()->getPdo();
-//         $tableCount = DB::select("SHOW TABLES");
-//         return response()->json([
-//             'status' => 'ok', 
-//             'database' => 'connected',
-//             'tables' => count($tableCount)
-//         ]);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'status' => 'error', 
-//             'message' => $e->getMessage()
-//         ], 500);
-//     }
-// });
-// Route::get('/debug-auth', function (Request $request) {
-//     $token = $request->bearerToken();
+Route::get('/debug/queue', function () {
+    $pendingJobs = DB::table('jobs')->count();
+    $failedJobs = DB::table('failed_jobs')->count();
     
-//     try {
-//         $user = null;
-//         if ($token) {
-//             $user = \Laravel\Sanctum\PersonalAccessToken::findToken($token)?->tokenable;
-//         }
-        
-//         return response()->json([
-//             'has_bearer_token' => $token ? 'yes' : 'no',
-//             'token_length' => $token ? strlen($token) : 0,
-//             'authenticated_via_sanctum' => auth('sanctum')->check(),
-//             'user_from_token' => $user ? ['id' => $user->id, 'email' => $user->email] : null,
-//             'user_from_auth' => auth('sanctum')->user(),
-//             'authorization_header' => $request->header('Authorization'),
-//         ]);
-//     } catch (\Exception $e) {
-//         return response()->json(['error' => $e->getMessage()], 500);
-//     }
-// });
-
-// Route::get('/debug-verification', function (Request $request) {
-//     $email = $request->get('email');
-//     $token = $request->get('token');
-    
-//     $user = \App\Models\User::where('email', $email)->first();
-    
-//     if (!$user) {
-//         return response()->json(['error' => 'User not found', 'email' => $email]);
-//     }
-    
-//     return response()->json([
-//         'user_found' => true,
-//         'user_email' => $user->email,
-//         'stored_token' => $user->email_verification_token,
-//         'provided_token' => $token,
-//         'tokens_match' => $user->email_verification_token === $token,
-//         'already_verified' => !is_null($user->email_verified_at),
-//         'email_verified_at' => $user->email_verified_at,
-//         'token_length_stored' => strlen($user->email_verification_token ?? ''),
-//         'token_length_provided' => strlen($token ?? ''),
-//     ]);
-// });
+    return response()->json([
+        'pending_jobs' => $pendingJobs,
+        'failed_jobs' => $failedJobs,
+        'queue_connection' => config('queue.default'),
+    ]);
+});
