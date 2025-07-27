@@ -11,11 +11,16 @@ use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReceiptController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\S3UploadController;
+use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\StripeWebhookController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/verify-email', [AuthController::class, 'verifyEmail']);
+
+Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
 // Anonymous upload routes
 Route::post('/anonymous/upload/presigned-url', [S3UploadController::class, 'getPresignedUrlAnonymous']);
@@ -66,6 +71,17 @@ Route::middleware(['auth:sanctum', 'verified'])->group(function () {
     // Expenses & Analytics (verified users only)
     Route::get('/expenses/weekly', [ExpenseController::class, 'weekly']);
     Route::get('/expenses/summary', [ExpenseController::class, 'summary']);
+
+    // Subscription management (verified users only)
+    Route::prefix('subscription')->group(function () {
+        Route::get('/current', [SubscriptionController::class, 'current']);
+        Route::post('/create', [SubscriptionController::class, 'create']);
+        Route::put('/update', [SubscriptionController::class, 'update']);
+        Route::post('/cancel', [SubscriptionController::class, 'cancel']);
+        Route::post('/resume', [SubscriptionController::class, 'resume']);
+        Route::post('/billing-portal', [SubscriptionController::class, 'billingPortal']);
+        Route::get('/usage', [SubscriptionController::class, 'usage']);
+    });
 });
 
 Route::get('/health', function () {

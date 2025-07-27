@@ -4,12 +4,13 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -26,6 +27,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'is_admin',
+        'stripe_customer_id',
         'user_tier',
         'email_verification_token',
         'total_uploads',
@@ -41,6 +43,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'stripe_customer_id',
     ];
 
     /**
@@ -61,63 +64,82 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Receipt::class);
     }
 
-    /**
-     * Check if user can upload receipts based on their tier limits
-     */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)->latest();
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function activeSubscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)
+                    ->whereIn('status', ['active', 'trialing'])
+                    ->where('current_period_end', '>', now());
+    }
+
+    public function hasActiveSubscription(): bool
+    {
+        return $this->activeSubscription()->exists();
+    }
+
+    public function getEffectiveTier(): string
+    {
+        $activeSubscription = $this->activeSubscription;
+        
+        if ($activeSubscription && $activeSubscription->isActive()) {
+            return $activeSubscription->plan->slug;
+        }
+        
+        return 'free';
+    }
+
+    public function getUploadLimit(): int
+    {
+        $activeSubscription = $this->activeSubscription;
+        
+        if ($activeSubscription && $activeSubscription->isActive()) {
+            return $activeSubscription->plan->upload_limit;
+        }
+        
+        // Default free tier limit
+        return 8;
+    }
+
     public function canUpload(): bool
     {
-        $uploadLimits = [
-            'free' => 8,      // 8 receipts per month
-            'premium' => 30,  // 30 receipts per month
-            'pro' => -1,       // unlimited
-        ];
-
-        $userTier = $this->user_tier ?? 'free';
-        $monthlyLimit = $uploadLimits[$userTier] ?? $uploadLimits['free'];
-
-        // Unlimited uploads for pro tier
-        if ($monthlyLimit === -1) {
+        $limit = $this->getUploadLimit();
+        
+        // Unlimited uploads
+        if ($limit === -1) {
             return true;
         }
-
-        // Count uploads this month
+        
         $uploadsThisMonth = $this->receipts()
             ->whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-
-        return $uploadsThisMonth < $monthlyLimit;
+        
+        return $uploadsThisMonth < $limit;
     }
 
-    /**
-     * Get remaining uploads for current month
-     */
     public function getRemainingUploads(): int
     {
-        $uploadLimits = [
-            'free' => 8,     
-            'premium' => 30,  
-            'pro' => -1,// unlimited
-        ];
-
-        $userTier = $this->user_tier ?? 'free';
-        $monthlyLimit = $uploadLimits[$userTier] ?? $uploadLimits['free'];
-
-        if ($monthlyLimit === -1) {
+        $limit = $this->getUploadLimit();
+        
+        if ($limit === -1) {
             return -1;
         }
-
+        
         $uploadsThisMonth = $this->receipts()
             ->whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-
-        return max(0, $monthlyLimit - $uploadsThisMonth);
-    }
-
-    public function isAdmin(): bool
-    {
-        return $this->is_admin;
-    }
         
+        return max(0, $limit - $uploadsThisMonth);
+    }
+
 }
