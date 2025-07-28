@@ -27,8 +27,23 @@ class ProcessReceiptJob implements ShouldQueue
     {
         Log::info('ProcessReceiptJob started', [
             'receipt_id' => $this->receipt->id,
-            'attempt' => $this->attempts()
+            'attempt' => $this->attempts(),
+            'receipt_data' => [
+                'image_path' => $this->receipt->image_path,
+                'storage_disk' => $this->receipt->storage_disk,
+                'status' => $this->receipt->status,
+            ],
+            'config_check' => [
+                'openai_key_set' => !empty(config('services.openai.api_key')),
+                'openai_key_length' => strlen(config('services.openai.api_key') ?? ''),
+            ]
         ]);
+
+        if (empty(config('services.openai.api_key'))) {
+            Log::error('OpenAI API key not configured', ['receipt_id' => $this->receipt->id]);
+            $this->receipt->update(['status' => 'failed']);
+            return;
+        }
 
         try {
             // Get optimized base64 encoded image
