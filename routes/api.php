@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ReceiptController;
+use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\S3UploadController;
 use App\Http\Controllers\Api\SubscriptionController;
@@ -21,6 +22,9 @@ Route::get('/verify-email', [AuthController::class, 'verifyEmail']);
 
 Route::get('/subscription/plans', [SubscriptionController::class, 'plans']);
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
+
+// Email receipt webhook (no auth needed)
+Route::post('/webhooks/email-receipts', [WebhookController::class, 'handleEmailReceipts']);
 
 // Anonymous upload routes
 Route::post('/anonymous/upload/presigned-url', [S3UploadController::class, 'getPresignedUrlAnonymous']);
@@ -92,32 +96,32 @@ Route::get('/health', function () {
     ]);
 });
 
-// DEBUG ROUTES 
-Route::get('/debug/queue', function () {
-    $pendingJobs = DB::table('jobs')->count();
-    $failedJobs = DB::table('failed_jobs')->count();
+// // DEBUG ROUTES 
+// Route::get('/debug/queue', function () {
+//     $pendingJobs = DB::table('jobs')->count();
+//     $failedJobs = DB::table('failed_jobs')->count();
     
-    return response()->json([
-        'pending_jobs' => $pendingJobs,
-        'failed_jobs' => $failedJobs,
-        'queue_connection' => config('queue.default'),
-    ]);
-});
-Route::get('/debug/failed-jobs', function () {
-    $failedJobs = DB::table('failed_jobs')->get()->map(function ($job) {
-        return [
-            'id' => $job->id,
-            'queue' => $job->queue,
-            'exception' => substr($job->exception, 0, 500), // First 500 chars
-            'failed_at' => $job->failed_at,
-            'payload' => json_decode($job->payload, true)['displayName'] ?? 'Unknown'
-        ];
-    });
+//     return response()->json([
+//         'pending_jobs' => $pendingJobs,
+//         'failed_jobs' => $failedJobs,
+//         'queue_connection' => config('queue.default'),
+//     ]);
+// });
+// Route::get('/debug/failed-jobs', function () {
+//     $failedJobs = DB::table('failed_jobs')->get()->map(function ($job) {
+//         return [
+//             'id' => $job->id,
+//             'queue' => $job->queue,
+//             'exception' => substr($job->exception, 0, 500), // First 500 chars
+//             'failed_at' => $job->failed_at,
+//             'payload' => json_decode($job->payload, true)['displayName'] ?? 'Unknown'
+//         ];
+//     });
     
-    return response()->json($failedJobs);
-});
+//     return response()->json($failedJobs);
+// });
 
-Route::get('/test-logging', function () {
-    Log::info('🔥 TEST LOG - Railway errorlog channel');
-    return response()->json(['message' => 'Check Railway logs!']);
-});
+// Route::get('/test-logging', function () {
+//     Log::info('🔥 TEST LOG - Railway errorlog channel');
+//     return response()->json(['message' => 'Check Railway logs!']);
+// });
