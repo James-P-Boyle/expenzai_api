@@ -33,6 +33,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'total_uploads',
         'daily_uploads',
         'last_upload_date',
+        'receipt_email_address',
+        'email_receipts_enabled',
     ];
 
     /**
@@ -56,6 +58,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'email_receipts_enabled' => 'boolean'
         ];
     }
     
@@ -140,6 +143,14 @@ class User extends Authenticatable implements MustVerifyEmail
             ->count();
         
         return max(0, $limit - $uploadsThisMonth);
+    }
+
+    // Generate unique email address when user upgrades to Pro
+    public function generateReceiptEmailAddress(): string
+    {
+        $address = "receipts-{$this->id}@expenzai.app";
+        $this->update(['receipt_email_address' => $address]);
+        return $address;
     }
 
 }
