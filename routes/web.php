@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\Receipt;
 use Illuminate\Support\Facades\DB;
 // use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 // Route::get('/simple-debug', function () {
@@ -104,4 +105,9 @@ Route::get('/', function () {
         'version' => '1.0.0',
         'timestamp' => now()
     ]);
+});
+
+Route::get('/test-logs', function () {
+    Log::info('TEST LOG - this should appear!', ['timestamp' => now()]);
+    return 'Log test sent - check your logs!';
 });
