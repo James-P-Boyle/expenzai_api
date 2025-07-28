@@ -126,10 +126,10 @@ Route::get('/test-logs', function () {
     ]);
 });
 
-Route::get('/test-papertrail', function () {
+Route::get('/test-winds', function () {
     // Test papertrail directly
-    $logger = Log::channel('papertrail');
-    $logger->info('PAPERTRAIL DIRECT TEST', ['timestamp' => now()]);
+    $logger = Log::channel('solarwinds');
+    $logger->info('Solar DIRECT TEST', ['timestamp' => now()]);
     
-    return 'Papertrail test sent - check SolarWinds dashboard';
+    return 'Solar test sent - check SolarWinds dashboard';
 });
