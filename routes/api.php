@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -93,6 +94,29 @@ Route::get('/health', function () {
         'status' => 'ok',
         'timestamp' => now(),
         'service' => 'expenzai-api'
+    ]);
+});
+
+// TEMPORARY - Create admin user (remove after first run)
+Route::get('/create-admin', function() {
+    if (User::where('email', 'admin@expenzai.app')->exists()) {
+        return response()->json(['message' => 'Admin already exists']);
+    }
+    
+    $admin = \App\Models\User::create([
+        'name' => 'Admin',
+        'email' => 'admin@expenzai.app',
+        'password' => bcrypt('admin123change'),
+        'email_verified_at' => now(),
+        'is_admin' => true,
+        'user_tier' => 'pro',
+    ]);
+    
+    return response()->json([
+        'message' => 'Admin created',
+        'email' => 'admin@expenzai.app',
+        'password' => 'admin123change',
+        'login_url' => 'https://api.expenzai.app/admin'
     ]);
 });
 
