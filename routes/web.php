@@ -114,7 +114,7 @@ Route::get('/test-logs', function () {
     file_put_contents('php://stderr', "STDERR DIRECT WRITE\n");
     
     // Laravel logging
-    \Log::info('LARAVEL LOG TEST');
+    Log::info('LARAVEL LOG TEST');
     
     // PHP error log
     error_log('PHP ERROR LOG TEST');
@@ -124,4 +124,12 @@ Route::get('/test-logs', function () {
         'log_channel' => config('logging.default'),
         'channels_available' => array_keys(config('logging.channels'))
     ]);
+});
+
+Route::get('/test-papertrail', function () {
+    // Test papertrail directly
+    $logger = Log::channel('papertrail');
+    $logger->info('PAPERTRAIL DIRECT TEST', ['timestamp' => now()]);
+    
+    return 'Papertrail test sent - check SolarWinds dashboard';
 });
