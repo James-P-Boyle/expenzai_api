@@ -108,6 +108,20 @@ Route::get('/', function () {
 });
 
 Route::get('/test-logs', function () {
-    Log::info('TEST LOG - this should appear!', ['timestamp' => now()]);
-    return 'Log test sent - check your logs!';
+    // Direct output that MUST show
+    echo "DIRECT ECHO TEST\n";
+    file_put_contents('php://stdout', "STDOUT DIRECT WRITE\n");
+    file_put_contents('php://stderr', "STDERR DIRECT WRITE\n");
+    
+    // Laravel logging
+    \Log::info('LARAVEL LOG TEST');
+    
+    // PHP error log
+    error_log('PHP ERROR LOG TEST');
+    
+    return response()->json([
+        'message' => 'All logging methods tested',
+        'log_channel' => config('logging.default'),
+        'channels_available' => array_keys(config('logging.channels'))
+    ]);
 });
