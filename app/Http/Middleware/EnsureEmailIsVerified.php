@@ -15,6 +15,11 @@ class EnsureEmailIsVerified
      */
     public function handle(Request $request, Closure $next): Response
     {
+          // Skip email verification for admin routes
+        if ($request->is('admin*')) {
+            return $next($request);
+        }
+        
         $user = $request->user();
 
         if (!$user) {
