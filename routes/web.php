@@ -146,13 +146,11 @@ Route::get('/test-queue-job', function () {
     return 'Test job dispatched - check SolarWinds logs';
 });
 
-Route::get('/debug-queue', function () {
-    Log::info('Queue debug info', [
-        'queue_connection' => config('queue.default'),
-        'queue_driver' => config('queue.connections.database'),
-        'redis_configured' => config('cache.stores.redis'),
-        'jobs_table_exists' => Schema::hasTable('jobs'),
+Route::get('/debug-filament', function() {
+    return response()->json([
+        'filament_installed' => class_exists(\Filament\Facades\Filament::class),
+        'user_model_path' => \App\Models\User::class,
+        'admin_user_exists' => \App\Models\User::where('email', 'admin@expenzai.app')->exists(),
+        'admin_route_exists' => \Illuminate\Support\Facades\Route::has('filament.admin.auth.login'),
     ]);
-    
-    return 'Queue debug logged';
 });

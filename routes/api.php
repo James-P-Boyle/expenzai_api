@@ -97,16 +97,18 @@ Route::get('/health', function () {
     ]);
 });
 
-// TEMPORARY - Create admin user (remove after first run)
 Route::get('/create-admin', function() {
-    if (User::where('email', 'admin@expenzai.app')->exists()) {
+    $adminEmail = env('ADMIN_EMAIL', 'admin@expenzai.app');
+    $adminPassword = env('ADMIN_PASSWORD', 'admin123change');
+    
+    if (User::where('email', $adminEmail)->exists()) {
         return response()->json(['message' => 'Admin already exists']);
     }
     
     $admin = \App\Models\User::create([
         'name' => 'Admin',
-        'email' => 'admin@expenzai.app',
-        'password' => bcrypt('admin123change'),
+        'email' => $adminEmail,
+        'password' => bcrypt($adminPassword),
         'email_verified_at' => now(),
         'is_admin' => true,
         'user_tier' => 'pro',
@@ -114,12 +116,11 @@ Route::get('/create-admin', function() {
     
     return response()->json([
         'message' => 'Admin created',
-        'email' => 'admin@expenzai.app',
-        'password' => 'admin123change',
-        'login_url' => 'https://api.expenzai.app/admin'
+        'email' => $adminEmail,
+        'password' => $adminPassword,
+        'login_url' => url('/admin')
     ]);
 });
-
 // // DEBUG ROUTES 
 // Route::get('/debug/queue', function () {
 //     $pendingJobs = DB::table('jobs')->count();

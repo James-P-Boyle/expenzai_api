@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
+use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -75,6 +76,12 @@ class User extends Authenticatable implements MustVerifyEmail
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Only allow admin users to access Filament
+        return $this->is_admin || $this->email === env('ADMIN_EMAIL', 'admin@expenzai.app');
     }
 
     public function activeSubscription(): HasOne
