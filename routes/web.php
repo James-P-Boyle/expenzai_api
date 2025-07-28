@@ -173,3 +173,16 @@ Route::get('/test-filament-class', function() {
         'php_version' => PHP_VERSION,
     ]);
 });
+
+Route::get('/debug-cloudflare', function(Illuminate\Http\Request $request) {
+    return response()->json([
+        'cf_ray' => $request->header('CF-Ray'),
+        'cf_connecting_ip' => $request->header('CF-Connecting-IP'),
+        'cf_visitor' => $request->header('CF-Visitor'),
+        'all_cf_headers' => collect($request->headers->all())
+            ->filter(fn($value, $key) => str_starts_with(strtolower($key), 'cf-'))
+            ->toArray(),
+        'request_ip' => $request->ip(),
+        'server_ip' => $_SERVER['SERVER_ADDR'] ?? 'unknown',
+    ]);
+});
