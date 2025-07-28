@@ -94,6 +94,12 @@ return [
             'processors' => [PsrLogMessageProcessor::class],
         ],
 
+        'solarwinds' => [
+            'driver' => 'custom',
+            'via' => App\Logging\SolarWindsLogger::class,
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
         'stderr' => [
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),
