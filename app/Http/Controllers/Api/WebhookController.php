@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Api;
+
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -16,32 +17,42 @@ class WebhookController extends Controller
         try {
             $data = $request->validate([
                 'email' => 'required|email',
-                'userId' => 'required|integer',
                 'rawMessage' => 'required|string',
             ]);
 
-            $email = $data['email'];
-            $userId = $data['userId'];
+            $senderEmail = $data['email'];
             $rawMessage = $data['rawMessage'];
 
-            // Find the user
-            $user = User::find($userId);
-            if (!$user || $user->user_tier !== 'pro' || !$user->email_receipts_enabled) {
+            // Find user by their email address
+            $user = User::where('email', $senderEmail)->first();
+            
+            if (!$user) {
+                Log::warning('User not found for email receipt', [
+                    'sender_email' => $senderEmail,
+                ]);
+                return response()->json(['error' => 'User not found'], 404);
+            }
+
+            if (!$user->canReceiveEmailReceipts()) {
                 Log::warning('User not eligible for email receipts', [
-                    'user_id' => $userId,
-                    'user_exists' => !!$user,
-                    'user_tier' => $user->user_tier ?? 'none',
-                    'email_enabled' => $user->email_receipts_enabled ?? false,
+                    'user_id' => $user->id,
+                    'email' => $senderEmail,
+                    'user_tier' => $user->user_tier,
+                    'email_enabled' => $user->email_receipts_enabled,
                 ]);
                 return response()->json(['error' => 'User not eligible'], 403);
             }
 
             // Dispatch job to process the email
-            ProcessEmailReceiptJob::dispatch($user, $email, $rawMessage);
+            ProcessEmailReceiptJob::dispatch($user, $senderEmail, $rawMessage);
 
-            Log::info('Email receipt job dispatched', ['user_id' => $userId, 'email' => $email]);
+            Log::info('Email receipt job dispatched', [
+                'user_id' => $user->id, 
+                'email' => $senderEmail
+            ]);
 
             return response()->json(['status' => 'processed']);
+            
         } catch (\Exception $e) {
             Log::error('Email receipt webhook error', [
                 'error' => $e->getMessage(),
