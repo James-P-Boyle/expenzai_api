@@ -19,6 +19,9 @@ class ProcessReceiptJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $timeout = 300; 
+    public $tries = 3; 
+
     public function __construct(
         public Receipt $receipt
     ) {}
@@ -28,6 +31,8 @@ class ProcessReceiptJob implements ShouldQueue
         Log::info('ProcessReceiptJob started', [
             'receipt_id' => $this->receipt->id,
             'attempt' => $this->attempts(),
+            'max_tries' => $this->tries,
+            'timeout' => $this->timeout,
             'receipt_data' => [
                 'image_path' => $this->receipt->image_path,
                 'storage_disk' => $this->receipt->storage_disk,
@@ -47,82 +52,136 @@ class ProcessReceiptJob implements ShouldQueue
 
         try {
             // Get optimized base64 encoded image
+            Log::info('Starting image optimization', ['receipt_id' => $this->receipt->id]);
             $base64Image = $this->getOptimizedImage();
+            Log::info('Image optimization completed successfully', [
+                'receipt_id' => $this->receipt->id,
+                'base64_length' => strlen($base64Image)
+            ]);
 
-            Log::info('About to call OpenAI API', ['receipt_id' => $this->receipt->id]);
+            Log::info('About to call OpenAI API', [
+                'receipt_id' => $this->receipt->id,
+                'image_size_bytes' => strlen($base64Image),
+                'model' => 'gpt-4o'
+            ]);
 
-            $response = Http::timeout(180)
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . config('services.openai.api_key'),
-                    'Content-Type' => 'application/json',
-                ])->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => 'gpt-4o',
-                    'messages' => [
-                        [
-                            'role' => 'user',
-                            'content' => [
-                                [
-                                    'type' => 'text',
-                                    'text' => $this->getPrompt()
-                                ],
-                                [
-                                    'type' => 'image_url',
-                                    'image_url' => [
-                                        'url' => "data:image/jpeg;base64,{$base64Image}"
+            try {
+                $response = Http::timeout(180)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . config('services.openai.api_key'),
+                        'Content-Type' => 'application/json',
+                    ])->post('https://api.openai.com/v1/chat/completions', [
+                        'model' => 'gpt-4o',
+                        'messages' => [
+                            [
+                                'role' => 'user',
+                                'content' => [
+                                    [
+                                        'type' => 'text',
+                                        'text' => $this->getPrompt()
+                                    ],
+                                    [
+                                        'type' => 'image_url',
+                                        'image_url' => [
+                                            'url' => "data:image/jpeg;base64,{$base64Image}"
+                                        ]
                                     ]
                                 ]
                             ]
-                        ]
-                    ],
-                    'max_tokens' => 2000,
-                    'temperature' => 0.1
+                        ],
+                        'max_tokens' => 2000,
+                        'temperature' => 0.1
+                    ]);
+
+                Log::info('OpenAI API call completed', [
+                    'receipt_id' => $this->receipt->id,
+                    'status_code' => $response->status(),
+                    'successful' => $response->successful(),
+                    'response_size' => strlen($response->body()),
+                    'has_choices' => isset($response->json()['choices'])
                 ]);
 
+            } catch (\Exception $e) {
+                Log::error('OpenAI API call failed with exception', [
+                    'receipt_id' => $this->receipt->id,
+                    'error_message' => $e->getMessage(),
+                    'error_class' => get_class($e),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                throw $e;
+            }
+
             if ($response->successful()) {
+                Log::info('Processing successful OpenAI response', ['receipt_id' => $this->receipt->id]);
+                
                 $aiResponse = $response->json();
+                
+                if (!isset($aiResponse['choices'][0]['message']['content'])) {
+                    Log::error('Invalid OpenAI response structure', [
+                        'receipt_id' => $this->receipt->id,
+                        'response_keys' => array_keys($aiResponse),
+                        'has_choices' => isset($aiResponse['choices']),
+                        'choices_count' => isset($aiResponse['choices']) ? count($aiResponse['choices']) : 0
+                    ]);
+                    throw new \Exception('Invalid OpenAI response structure');
+                }
+                
                 $content = $aiResponse['choices'][0]['message']['content'];
+                
+                Log::info('Parsing AI response content', [
+                    'receipt_id' => $this->receipt->id,
+                    'content_length' => strlen($content),
+                    'content_preview' => substr($content, 0, 200)
+                ]);
                 
                 $this->parseAndStoreReceipt($content);
                 
                 $this->receipt->update(['status' => 'completed']);
                 
                 Log::info('Receipt processing completed successfully', [
-                    'receipt_id' => $this->receipt->id
+                    'receipt_id' => $this->receipt->id,
+                    'final_status' => 'completed'
                 ]);
                 
             } else {
-                Log::error('OpenAI API Error', [
+                Log::error('OpenAI API Error - Non-successful response', [
                     'receipt_id' => $this->receipt->id,
                     'status' => $response->status(),
-                    'response' => $response->body()
+                    'response_body' => $response->body(),
+                    'headers' => $response->headers()
                 ]);
                 $this->receipt->update(['status' => 'failed']);
+                throw new \Exception('OpenAI API returned non-successful status: ' . $response->status());
             }
-
-            Log::info('OpenAI API response received', [
-                'receipt_id' => $this->receipt->id,
-                'status_code' => $response->status(),
-                'successful' => $response->successful()
-            ]);
         
         } catch (\Exception $e) {
-            Log::error('Receipt Processing Error', [
+            Log::error('Receipt Processing Error - Main catch block', [
                 'receipt_id' => $this->receipt->id,
                 'attempt' => $this->attempts(),
-                'error' => $e->getMessage(),
+                'max_tries' => $this->tries,
+                'error_message' => $e->getMessage(),
+                'error_class' => get_class($e),
                 'trace' => $e->getTraceAsString()
             ]);
             
             $this->receipt->update(['status' => 'failed']);
+            
+            // Re-throw to trigger retry mechanism
+            throw $e;
         }
     }
 
     private function getOptimizedImage(): string
     {
         $imagePath = $this->receipt->image_path;
-        
-        // Check which storage disk to use
         $disk = $this->receipt->storage_disk ?? 'public';
+        
+        Log::info('Getting optimized image', [
+            'receipt_id' => $this->receipt->id,
+            'image_path' => $imagePath,
+            'disk' => $disk,
+            'disk_config_exists' => config("filesystems.disks.{$disk}") !== null
+        ]);
         
         try {
             $originalImageContent = Storage::disk($disk)->get($imagePath);
@@ -131,7 +190,8 @@ class ProcessReceiptJob implements ShouldQueue
                 'receipt_id' => $this->receipt->id,
                 'disk' => $disk,
                 'path' => $imagePath,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e)
             ]);
             throw $e;
         }
@@ -140,17 +200,23 @@ class ProcessReceiptJob implements ShouldQueue
 
         Log::info('Original image stats', [
             'receipt_id' => $this->receipt->id,
-            'original_size_kb' => $originalSize / 1024,
+            'original_size_kb' => round($originalSize / 1024, 2),
             'path' => $imagePath,
             'disk' => $disk
         ]);
 
         // If image is already small enough (under 500KB), return as-is
         if ($originalSize <= 512000) { // 500KB
+            Log::info('Image is small enough, using original', [
+                'receipt_id' => $this->receipt->id,
+                'size_kb' => round($originalSize / 1024, 2)
+            ]);
             return base64_encode($originalImageContent);
         }
 
         try {
+            Log::info('Starting image optimization process', ['receipt_id' => $this->receipt->id]);
+            
             // Create image manager with GD driver
             $manager = new ImageManager(new Driver());
             $image = $manager->read($originalImageContent);
@@ -158,6 +224,12 @@ class ProcessReceiptJob implements ShouldQueue
             // Get original dimensions
             $originalWidth = $image->width();
             $originalHeight = $image->height();
+
+            Log::info('Original image dimensions', [
+                'receipt_id' => $this->receipt->id,
+                'width' => $originalWidth,
+                'height' => $originalHeight
+            ]);
 
             // Calculate new dimensions (max 1600px on longest side)
             $maxDimension = 1600;
@@ -179,8 +251,8 @@ class ProcessReceiptJob implements ShouldQueue
 
             Log::info('Image optimization completed', [
                 'receipt_id' => $this->receipt->id,
-                'original_size_kb' => $originalSize / 1024,
-                'optimized_size_kb' => $optimizedSize / 1024,
+                'original_size_kb' => round($originalSize / 1024, 2),
+                'optimized_size_kb' => round($optimizedSize / 1024, 2),
                 'compression_ratio' => round(($originalSize - $optimizedSize) / $originalSize * 100, 1) . '%',
                 'dimensions' => "{$newWidth}x{$newHeight}"
             ]);
@@ -190,7 +262,8 @@ class ProcessReceiptJob implements ShouldQueue
         } catch (\Exception $e) {
             Log::warning('Image optimization failed, using original', [
                 'receipt_id' => $this->receipt->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e)
             ]);
             
             // Fallback to original image if optimization fails
@@ -200,7 +273,19 @@ class ProcessReceiptJob implements ShouldQueue
 
     public function retryUntil()
     {
-        return now()->addMinutes(10);
+        return now()->addMinutes(15); 
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('ProcessReceiptJob permanently failed', [
+            'receipt_id' => $this->receipt->id,
+            'final_attempt' => $this->attempts(),
+            'exception' => $exception->getMessage(),
+            'exception_class' => get_class($exception)
+        ]);
+        
+        $this->receipt->update(['status' => 'failed']);
     }
 
     private function getPrompt(): string
@@ -238,22 +323,48 @@ class ProcessReceiptJob implements ShouldQueue
     private function parseAndStoreReceipt(string $aiResponse): void
     {
         try {
-            Log::info('Starting to parse AI response', ['receipt_id' => $this->receipt->id]);
+            Log::info('Starting to parse AI response', [
+                'receipt_id' => $this->receipt->id,
+                'response_length' => strlen($aiResponse)
+            ]);
             
-            // Clean the response - sometimes AI includes markdown formatting
+            // Clean the response 
             $jsonStart = strpos($aiResponse, '{');
             $jsonEnd = strrpos($aiResponse, '}') + 1;
+            
+            if ($jsonStart === false || $jsonEnd === false) {
+                Log::error('Could not find JSON boundaries in AI response', [
+                    'receipt_id' => $this->receipt->id,
+                    'response' => $aiResponse
+                ]);
+                throw new \Exception('Invalid AI response - no JSON found');
+            }
+            
             $jsonString = substr($aiResponse, $jsonStart, $jsonEnd - $jsonStart);
+            
+            Log::info('Extracted JSON string', [
+                'receipt_id' => $this->receipt->id,
+                'json_length' => strlen($jsonString),
+                'json_preview' => substr($jsonString, 0, 200)
+            ]);
             
             $data = json_decode($jsonString, true);
             
             if (!$data) {
                 Log::error('JSON decode failed', [
                     'json_error' => json_last_error_msg(),
-                    'receipt_id' => $this->receipt->id
+                    'json_error_code' => json_last_error(),
+                    'receipt_id' => $this->receipt->id,
+                    'json_string' => $jsonString
                 ]);
                 throw new \Exception('Invalid JSON response from AI: ' . json_last_error_msg());
             }
+            
+            Log::info('JSON parsed successfully', [
+                'receipt_id' => $this->receipt->id,
+                'data_keys' => array_keys($data),
+                'items_count' => isset($data['items']) ? count($data['items']) : 0
+            ]);
             
             // Update receipt with extracted data
             $this->receipt->update([
@@ -265,22 +376,52 @@ class ProcessReceiptJob implements ShouldQueue
                     : Carbon::now()->startOfWeek(),
             ]);
     
+            Log::info('Receipt data updated', [
+                'receipt_id' => $this->receipt->id,
+                'store_name' => $data['store_name'] ?? null,
+                'total_amount' => $data['total_amount'] ?? null
+            ]);
+    
             // Store items
             if (isset($data['items']) && is_array($data['items'])) {
-                foreach ($data['items'] as $itemData) {
-                    $this->receipt->items()->create([
-                        'name' => $itemData['name'] ?? 'Unknown Item',
-                        'price' => $itemData['price'] ?? 0,
-                        'category' => $itemData['category'] ?? 'Other',
-                        'is_uncertain' => $itemData['is_uncertain'] ?? false,
-                    ]);
+                foreach ($data['items'] as $index => $itemData) {
+                    try {
+                        $item = $this->receipt->items()->create([
+                            'name' => $itemData['name'] ?? 'Unknown Item',
+                            'price' => $itemData['price'] ?? 0,
+                            'category' => $itemData['category'] ?? 'Other',
+                            'is_uncertain' => $itemData['is_uncertain'] ?? false,
+                        ]);
+                        
+                        Log::info('Item created', [
+                            'receipt_id' => $this->receipt->id,
+                            'item_id' => $item->id,
+                            'item_index' => $index,
+                            'item_name' => $item->name,
+                            'item_price' => $item->price
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('Failed to create item', [
+                            'receipt_id' => $this->receipt->id,
+                            'item_index' => $index,
+                            'item_data' => $itemData,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
+                
+                Log::info('All items processed', [
+                    'receipt_id' => $this->receipt->id,
+                    'total_items' => count($data['items'])
+                ]);
             }
     
         } catch (\Exception $e) {
             Log::error('Receipt parsing error', [
                 'receipt_id' => $this->receipt->id,
                 'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'trace' => $e->getTraceAsString()
             ]);
             throw $e;
         }
