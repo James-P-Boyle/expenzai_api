@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 // use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 // Route::get('/simple-debug', function () {
 //     try {
@@ -132,4 +133,26 @@ Route::get('/test-winds', function () {
     $logger->info('Solar DIRECT TEST', ['timestamp' => now()]);
     
     return 'Solar test sent - check SolarWinds dashboard';
+});
+
+Route::get('/test-queue-job', function () {
+    Log::info('Dispatching test queue job');
+    
+    // Simple test job
+    dispatch(function () {
+        Log::info('TEST QUEUE JOB EXECUTED - this should appear in SolarWinds');
+    });
+    
+    return 'Test job dispatched - check SolarWinds logs';
+});
+
+Route::get('/debug-queue', function () {
+    Log::info('Queue debug info', [
+        'queue_connection' => config('queue.default'),
+        'queue_driver' => config('queue.connections.database'),
+        'redis_configured' => config('cache.stores.redis'),
+        'jobs_table_exists' => Schema::hasTable('jobs'),
+    ]);
+    
+    return 'Queue debug logged';
 });
