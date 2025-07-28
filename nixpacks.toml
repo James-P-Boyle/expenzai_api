@@ -4,7 +4,29 @@ POST_MAX_SIZE = "12M"
 MEMORY_LIMIT = "256M"
 
 [phases.setup]
-nixPkgs = ['php84', 'php84Extensions.bcmath', 'php84Extensions.ctype', 'php84Extensions.curl', 'php84Extensions.dom', 'php84Extensions.fileinfo', 'php84Extensions.filter', 'php84Extensions.hash', 'php84Extensions.mbstring', 'php84Extensions.openssl', 'php84Extensions.pcre', 'php84Extensions.pdo', 'php84Extensions.pdo_mysql', 'php84Extensions.session', 'php84Extensions.tokenizer', 'php84Extensions.xml', 'php84Extensions.xmlreader', 'php84Extensions.xmlwriter', 'php84Extensions.zip', 'php84Extensions.gd', 'php84Extensions.intl', 'php84Extensions.redis']
+nixPkgs = [
+    'php84',
+    'php84Extensions.bcmath',
+    'php84Extensions.ctype',
+    'php84Extensions.curl',
+    'php84Extensions.dom',
+    'php84Extensions.fileinfo',
+    'php84Extensions.filter',
+    'php84Extensions.mbstring',
+    'php84Extensions.openssl',
+    'php84Extensions.pcre',
+    'php84Extensions.pdo',
+    'php84Extensions.pdo_mysql',
+    'php84Extensions.session',
+    'php84Extensions.tokenizer',
+    'php84Extensions.xml',
+    'php84Extensions.xmlreader',
+    'php84Extensions.xmlwriter',
+    'php84Extensions.zip',
+    'php84Extensions.gd',
+    'php84Extensions.intl',
+    'php84Extensions.redis'
+]
 
 [phases.build]
 cmds = ["composer install --no-dev"]
