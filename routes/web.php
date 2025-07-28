@@ -150,17 +150,26 @@ Route::get('/debug-filament-full', function() {
     return response()->json([
         'providers_loaded' => array_keys(app()->getLoadedProviders()),
         'filament_provider_loaded' => in_array('App\Providers\Filament\AdminPanelProvider', array_keys(app()->getLoadedProviders())),
-        'filament_panels' => \Filament\Facades\Filament::getPanels(),
-        'admin_panel_exists' => \Filament\Facades\Filament::hasPanel('admin'),
-        'admin_routes' => collect(\Illuminate\Support\Facades\Route::getRoutes())
+        'filament_panels' => method_exists(\Filament\Facades\Filament::class, 'getPanels') ? \Filament\Facades\Filament::getPanels() : 'Method not available',
+        'php_version' => PHP_VERSION,
+        'laravel_version' => app()->version(),
+        'admin_routes' => collect(\Illuminate\Support\Facades\Route::getRoutes()->getRoutes())
             ->filter(fn($route) => str_contains($route->uri(), 'admin'))
             ->map(fn($route) => [
                 'uri' => $route->uri(),
                 'methods' => $route->methods(),
                 'name' => $route->getName(),
-                'action' => $route->getActionName()
             ])
-            ->values(),
-        'route_list_count' => count(\Illuminate\Support\Facades\Route::getRoutes()),
+            ->values()
+            ->toArray(),
+        'total_routes' => count(\Illuminate\Support\Facades\Route::getRoutes()->getRoutes()),
+    ]);
+});
+
+Route::get('/test-filament-class', function() {
+    return response()->json([
+        'filament_panel_provider_exists' => class_exists(\App\Providers\Filament\AdminPanelProvider::class),
+        'filament_facade_exists' => class_exists(\Filament\Facades\Filament::class),
+        'php_version' => PHP_VERSION,
     ]);
 });
