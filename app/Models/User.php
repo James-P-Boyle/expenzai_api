@@ -153,4 +153,32 @@ class User extends Authenticatable implements MustVerifyEmail
         return $address;
     }
 
+    // Check if user can receive email receipts (Pro users only)
+    public function canReceiveEmailReceipts(): bool
+    {
+        $effectiveTier = $this->getEffectiveTier();
+        
+        // Only Pro users get email receipts
+        return $effectiveTier === 'pro' && $this->email_receipts_enabled;
+    }
+
+    // Enable email receipts (auto-called when user becomes Pro)
+    public function enableEmailReceipts(): string
+    {
+        $this->update(['email_receipts_enabled' => true]);
+        
+        // Generate unique email if not already set
+        if (!$this->receipt_email_address) {
+            return $this->generateReceiptEmailAddress();
+        }
+        
+        return $this->receipt_email_address;
+    }
+
+    // Disable email receipts
+    public function disableEmailReceipts(): void
+    {
+        $this->update(['email_receipts_enabled' => false]);
+    }
+
 }

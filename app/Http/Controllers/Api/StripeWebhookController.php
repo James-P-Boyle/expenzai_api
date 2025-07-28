@@ -86,7 +86,12 @@ class StripeWebhookController extends Controller
         $stripeSubscriptionId = $session->subscription;
         
         if ($stripeSubscriptionId) {
-            $this->stripeService->syncSubscriptionFromStripe($stripeSubscriptionId);
+            $subscription = $this->stripeService->syncSubscriptionFromStripe($stripeSubscriptionId);
+            
+            // Update email receipts access after checkout completion
+            if ($subscription && $subscription->user) {
+                $this->updateEmailReceiptsAccess($subscription->user);
+            }
         }
     }
 
@@ -100,6 +105,9 @@ class StripeWebhookController extends Controller
                 'stripe_id' => $stripeSubscription->id,
                 'status' => $stripeSubscription->status
             ]);
+            
+            // Update email receipts access when subscription changes
+            $this->updateEmailReceiptsAccess($subscription->user);
         }
     }
 
@@ -115,8 +123,11 @@ class StripeWebhookController extends Controller
 
             // Downgrade user to free tier
             $subscription->user->update(['user_tier' => 'free']);
+            
+            // Disable email receipts when subscription is cancelled
+            $subscription->user->disableEmailReceipts();
 
-            Log::info('Subscription cancelled', [
+            Log::info('Subscription cancelled and email receipts disabled', [
                 'subscription_id' => $subscription->id,
                 'user_id' => $subscription->user_id
             ]);
@@ -143,7 +154,8 @@ class StripeWebhookController extends Controller
                 'currency' => $invoice->currency
             ]);
 
-            // Here you could send a payment success email or notification
+            // Update email receipts access after successful payment
+            $this->updateEmailReceiptsAccess($subscription->user);
         }
     }
 
@@ -166,7 +178,38 @@ class StripeWebhookController extends Controller
                 'currency' => $invoice->currency
             ]);
 
-            // Here you could send a payment failure email or notification
+            // Optionally disable email receipts for past_due subscriptions
+            // $subscription->user->disableEmailReceipts();
+        }
+    }
+
+    // NEW METHOD: Helper method to manage email receipt access
+    private function updateEmailReceiptsAccess($user): void
+    {
+        if (!$user) {
+            return;
+        }
+
+        $effectiveTier = $user->getEffectiveTier();
+        
+        if ($effectiveTier === 'pro') {
+            // Enable email receipts for Pro users
+            if (!$user->email_receipts_enabled) {
+                $emailAddress = $user->enableEmailReceipts();
+                Log::info('Email receipts enabled for Pro user', [
+                    'user_id' => $user->id,
+                    'email_address' => $emailAddress
+                ]);
+            }
+        } else {
+            // Disable for non-Pro users
+            if ($user->email_receipts_enabled) {
+                $user->disableEmailReceipts();
+                Log::info('Email receipts disabled for non-Pro user', [
+                    'user_id' => $user->id,
+                    'tier' => $effectiveTier
+                ]);
+            }
         }
     }
 }
