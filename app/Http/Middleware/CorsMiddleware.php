@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -9,6 +10,11 @@ class CorsMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Skip CORS for admin routes (Filament)
+        if ($request->is('admin*')) {
+            return $next($request);
+        }
+
         $allowedOrigins = [
             'https://www.expenzai.app',
             'https://expenzai.app',
