@@ -124,11 +124,10 @@ class UserResource extends Resource
                         'free' => 'Free',
                         'pro' => 'Pro',
                     ]),
-                SelectFilter::make('email_verified')
-                    ->query(fn (Builder $query): Builder => $query->whereNotNull('email_verified_at'))
-                    ->label('Email Verified'),
-                SelectFilter::make('email_receipts_enabled')
-                    ->query(fn (Builder $query): Builder => $query->where('email_receipts_enabled', true))
+                Tables\Filters\TernaryFilter::make('email_verified_at')
+                    ->label('Email Verified')
+                    ->nullable(),
+                Tables\Filters\TernaryFilter::make('email_receipts_enabled')
                     ->label('Email Receipts Enabled'),
             ])
             ->actions([
