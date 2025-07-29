@@ -47,19 +47,7 @@ class UserResource extends Resource
                     ])
                     ->required()
                     ->default('free')
-                    ->reactive()
-                    ->afterStateUpdated(function ($state, callable $set) {
-                        // Auto-enable email receipts for Pro users
-                        if ($state === 'pro') {
-                            $set('email_receipts_enabled', true);
-                        } else {
-                            $set('email_receipts_enabled', false);
-                        }
-                    }),
-                Toggle::make('email_receipts_enabled')
-                    ->label('Email Receipts Enabled')
-                    ->helperText('Pro users can receive receipt emails')
-                    ->default(false),
+                    ->helperText('Pro users automatically get email receipt processing'),
                 Forms\Components\TextInput::make('receipt_email_address')
                     ->label('Receipt Email Address')
                     ->disabled()
@@ -76,15 +64,6 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->query(function () {
-                $query = User::query();
-                \Illuminate\Support\Facades\Log::info('🔍 UserResource Table Debug', [
-                    'total_users' => User::count(),
-                    'query_count' => $query->count(),
-                    'users_sample' => User::select('id', 'name', 'email', 'user_tier')->get()->toArray(),
-                ]);
-                return $query;
-            })
             ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->sortable(),
@@ -102,9 +81,12 @@ class UserResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\IconColumn::make('email_receipts_enabled')
-                    ->boolean()
-                    ->label('Email Receipts'),
+                Tables\Columns\TextColumn::make('receipt_email_address')
+                    ->label('Receipt Email')
+                    ->placeholder('Not generated')
+                    ->copyable()
+                    ->copyMessage('Receipt email copied!')
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('email_verified_at')
                     ->boolean()
                     ->label('Verified')
@@ -127,22 +109,34 @@ class UserResource extends Resource
                 Tables\Filters\TernaryFilter::make('email_verified_at')
                     ->label('Email Verified')
                     ->nullable(),
-                Tables\Filters\TernaryFilter::make('email_receipts_enabled')
-                    ->label('Email Receipts Enabled'),
+                Tables\Filters\TernaryFilter::make('receipt_email_address')
+                    ->label('Has Receipt Email')
+                    ->nullable(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Action::make('enableEmailReceipts')
-                    ->label('Enable Email Receipts')
+                Action::make('generateReceiptEmail')
+                    ->label('Generate Receipt Email')
                     ->icon('heroicon-o-envelope')
-                    ->visible(fn ($record) => !$record->email_receipts_enabled)
-                    ->action(function ($record) {
-                        $emailAddress = $record->enableEmailReceipts();
-                        \Filament\Notifications\Notification::make()
-                            ->title('Email receipts enabled')
-                            ->body("Receipt email: {$emailAddress}")
-                            ->success()
-                            ->send();
+                    ->visible(fn ($record) => $record->user_tier === 'pro' && !$record->receipt_email_address)
+                    ->action(function ($record, $livewire) {
+                        try {
+                            $emailAddress = $record->enableEmailReceipts();
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Receipt email generated')
+                                ->body("Receipt email: {$emailAddress}")
+                                ->success()
+                                ->send();
+                                
+                            $livewire->dispatch('$refresh');
+                        } catch (\Exception $e) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error generating receipt email')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Action::make('viewReceipts')
                     ->label('View Receipts')
@@ -153,13 +147,24 @@ class UserResource extends Resource
                     ->label('Verify Email')
                     ->icon('heroicon-o-check-badge')
                     ->visible(fn ($record) => is_null($record->email_verified_at))
-                    ->action(function ($record) {
-                        $record->update(['email_verified_at' => now()]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('Email verified')
-                            ->body("User {$record->email} has been verified")
-                            ->success()
-                            ->send();
+                    ->action(function ($record, $livewire) {
+                        try {
+                            $record->update(['email_verified_at' => now()]);
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Email verified')
+                                ->body("User {$record->email} has been verified")
+                                ->success()
+                                ->send();
+                                
+                            $livewire->dispatch('$refresh');
+                        } catch (\Exception $e) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error verifying email')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->bulkActions([

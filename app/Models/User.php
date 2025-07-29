@@ -36,8 +36,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'total_uploads',
         'daily_uploads',
         'last_upload_date',
-        'receipt_email_address',
-        'email_receipts_enabled',
     ];
 
     /**
@@ -61,7 +59,6 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'email_receipts_enabled' => 'boolean'
         ];
     }
     
@@ -117,7 +114,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
             return $activeSubscription->plan->slug;
         }
         
-        return 'free';
+        return $this->user_tier ?? 'free';
     }
 
     public function getUploadLimit(): int
@@ -173,20 +170,15 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         return $address;
     }
 
-    // Check if user can receive email receipts (Pro users only)
     public function canReceiveEmailReceipts(): bool
     {
-        $effectiveTier = $this->getEffectiveTier();
-        
-        // Only Pro users get email receipts
-        return $effectiveTier === 'pro' && $this->email_receipts_enabled;
+        return $this->user_tier === 'pro';
     }
+
 
     // Enable email receipts (auto-called when user becomes Pro)
     public function enableEmailReceipts(): string
     {
-        $this->update(['email_receipts_enabled' => true]);
-        
         // Generate unique email if not already set
         if (!$this->receipt_email_address) {
             return $this->generateReceiptEmailAddress();
