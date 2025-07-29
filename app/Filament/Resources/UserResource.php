@@ -76,6 +76,15 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->query(function () {
+                $query = User::query();
+                \Illuminate\Support\Facades\Log::info('🔍 UserResource Table Debug', [
+                    'total_users' => User::count(),
+                    'query_count' => $query->count(),
+                    'users_sample' => User::select('id', 'name', 'email', 'user_tier')->get()->toArray(),
+                ]);
+                return $query;
+            })
             ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->sortable(),
@@ -86,37 +95,10 @@ class UserResource extends Resource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('user_tier')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'free' => 'gray',
-                        'pro' => 'success',
-                        default => 'gray',
-                    })
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('effective_tier')
-                    ->label('Effective Tier')
-                    ->getStateUsing(fn ($record) => $record->getEffectiveTier())
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'free' => 'gray',
-                        'pro' => 'success',
-                        default => 'gray',
-                    }),
-                IconColumn::make('email_receipts_enabled')
-                    ->boolean()
-                    ->label('Email Receipts'),
-                IconColumn::make('email_verified_at')
-                    ->boolean()
-                    ->label('Verified')
-                    ->getStateUsing(fn ($record) => !is_null($record->email_verified_at)),
-                Tables\Columns\TextColumn::make('receipts_count')
-                    ->label('Receipts')
-                    ->counts('receipts')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
             ])
             ->filters([
                 SelectFilter::make('user_tier')
