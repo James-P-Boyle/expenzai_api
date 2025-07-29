@@ -32,6 +32,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
         'is_admin',
         'stripe_customer_id',
         'user_tier',
+        'email_verified_at',
         'email_verification_token',
         'total_uploads',
         'daily_uploads',
