@@ -102,7 +102,7 @@ Route::get('/preview-welcome-email', function () {
 // });
 Route::get('/', function () {
     return response()->json([
-        'status' => 'Expensai',
+        'status' => 'Expenzai',
         'version' => '1.0.0',
         'timestamp' => now()
     ]);
