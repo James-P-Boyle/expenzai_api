@@ -106,29 +106,6 @@ class UserResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Action::make('generateReceiptEmail')
-                    ->label('Generate Receipt Email')
-                    ->icon('heroicon-o-envelope')
-                    ->visible(fn ($record) => $record->user_tier === 'pro' && !$record->receipt_email_address)
-                    ->action(function ($record, $livewire) {
-                        try {
-                            $emailAddress = $record->enableEmailReceipts();
-                            
-                            \Filament\Notifications\Notification::make()
-                                ->title('Receipt email generated')
-                                ->body("Receipt email: {$emailAddress}")
-                                ->success()
-                                ->send();
-                                
-                            $livewire->dispatch('$refresh');
-                        } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()
-                                ->title('Error generating receipt email')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
                 Action::make('viewReceipts')
                     ->label('View Receipts')
                     ->icon('heroicon-o-document-text')
