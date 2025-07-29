@@ -76,15 +76,6 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->query(function () {
-                $query = User::query();
-                \Illuminate\Support\Facades\Log::info('🔍 UserResource Table Debug', [
-                    'total_users' => User::count(),
-                    'query_count' => $query->count(),
-                    'users_sample' => User::select('id', 'name', 'email', 'user_tier')->get()->toArray(),
-                ]);
-                return $query;
-            })
             ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->sortable(),
