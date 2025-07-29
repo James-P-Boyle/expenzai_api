@@ -33,7 +33,7 @@ class ProcessEmailReceiptJob implements ShouldQueue
 
     public function handle()
     {
-        Log::info('🚀 ProcessEmailReceiptJob started (Alternative Parser)', [
+        Log::info('🚀 ProcessEmailReceiptJob started (Enhanced Parser)', [
             'user_id' => $this->user->id,
             'user_email' => $this->user->email,
             'sender_email' => $this->email,
@@ -47,12 +47,12 @@ class ProcessEmailReceiptJob implements ShouldQueue
             $subject = $this->extractHeader('Subject') ?: 'No Subject';
             $from = $this->extractHeader('From') ?: 'Unknown Sender';
             
-            Log::info('📧 Email headers parsed (simple)', [
+            Log::info('📧 Email headers parsed', [
                 'subject' => $subject,
                 'from' => $from,
             ]);
 
-            // Look for base64 encoded attachments or multipart content
+            // Enhanced attachment extraction
             $attachments = $this->extractAttachments();
             
             Log::info('📎 Attachments extracted', [
@@ -62,6 +62,7 @@ class ProcessEmailReceiptJob implements ShouldQueue
                         'filename' => $attachment['filename'],
                         'content_type' => $attachment['content_type'],
                         'size' => strlen($attachment['content']),
+                        'encoding' => $attachment['encoding'] ?? 'none',
                     ];
                 }, $attachments)
             ]);
@@ -71,6 +72,8 @@ class ProcessEmailReceiptJob implements ShouldQueue
                     'user_id' => $this->user->id,
                     'email' => $this->email,
                     'subject' => $subject,
+                    'has_boundary' => $this->hasBoundary(),
+                    'content_type' => $this->extractHeader('Content-Type'),
                 ]);
                 return;
             }
@@ -82,14 +85,15 @@ class ProcessEmailReceiptJob implements ShouldQueue
                 Log::info("📎 Processing attachment {$index}", [
                     'filename' => $attachment['filename'],
                     'content_type' => $attachment['content_type'],
+                    'size' => strlen($attachment['content']),
                 ]);
 
                 $content = $attachment['content'];
                 $filename = $attachment['filename'];
-                $contentType = $attachment['content_type'];
+                $contentType = strtolower($attachment['content_type']);
 
                 // Validate it's an image
-                if (!in_array(strtolower($contentType), $validImageTypes)) {
+                if (!in_array($contentType, $validImageTypes)) {
                     Log::info("⏭️ Skipping non-image attachment", [
                         'filename' => $filename,
                         'content_type' => $contentType,
@@ -97,14 +101,25 @@ class ProcessEmailReceiptJob implements ShouldQueue
                     continue;
                 }
 
+                // Validate content is not empty
+                if (empty($content)) {
+                    Log::warning("⚠️ Skipping empty attachment", [
+                        'filename' => $filename,
+                    ]);
+                    continue;
+                }
+
                 // Store attachment
-                $path = 'receipts/email/' . $this->user->id . '/' . Carbon::now()->format('Ymd_His') . '_' . $filename;
+                $timestamp = Carbon::now()->format('Ymd_His');
+                $sanitizedFilename = preg_replace('/[^a-zA-Z0-9._-]/', '', $filename);
+                $path = "receipts/email/{$this->user->id}/{$timestamp}_{$sanitizedFilename}";
                 
                 try {
                     $stored = Storage::disk('public')->put($path, $content);
                     Log::info("💾 File stored successfully", [
                         'path' => $path,
                         'stored' => $stored,
+                        'size' => strlen($content),
                     ]);
                 } catch (\Exception $e) {
                     Log::error("💾 Failed to store file", [
@@ -151,6 +166,7 @@ class ProcessEmailReceiptJob implements ShouldQueue
                 } catch (\Exception $e) {
                     Log::error("🧾 Failed to create receipt record", [
                         'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                     continue;
                 }
@@ -182,6 +198,11 @@ class ProcessEmailReceiptJob implements ShouldQueue
         return null;
     }
 
+    private function hasBoundary()
+    {
+        return preg_match('/boundary[=: ]+(["\']?)([^"\'\s;]+)\1/i', $this->rawMessage) ? true : false;
+    }
+
     private function extractAttachments()
     {
         $attachments = [];
@@ -189,14 +210,43 @@ class ProcessEmailReceiptJob implements ShouldQueue
         // Look for multipart boundaries
         if (preg_match('/boundary[=: ]+(["\']?)([^"\'\s;]+)\1/i', $this->rawMessage, $matches)) {
             $boundary = $matches[2];
-            $parts = explode("--{$boundary}", $this->rawMessage);
+            Log::info('📬 Found boundary', ['boundary' => $boundary]);
             
-            foreach ($parts as $part) {
-                if (strpos($part, 'Content-Disposition: attachment') !== false) {
+            $parts = preg_split("/--" . preg_quote($boundary, '/') . "/", $this->rawMessage);
+            
+            Log::info('📦 Split into parts', ['part_count' => count($parts)]);
+            
+            foreach ($parts as $index => $part) {
+                if (empty(trim($part)) || strpos($part, '--') === 0) {
+                    continue; // Skip empty parts or end boundary
+                }
+                
+                Log::info("🔍 Analyzing part {$index}", [
+                    'length' => strlen($part),
+                    'has_content_type' => strpos($part, 'Content-Type:') !== false,
+                    'has_content_disposition' => strpos($part, 'Content-Disposition:') !== false,
+                ]);
+                
+                // Look for any part that might be an image (not just attachments)
+                if ($this->isImagePart($part)) {
                     $attachment = $this->parseAttachmentPart($part);
                     if ($attachment) {
                         $attachments[] = $attachment;
+                        Log::info("✅ Found image attachment", [
+                            'filename' => $attachment['filename'],
+                            'content_type' => $attachment['content_type'],
+                        ]);
                     }
+                }
+            }
+        } else {
+            Log::info('📬 No boundary found, checking for single part message');
+            
+            // Handle single-part messages or simple base64 encoded images
+            if ($this->isImagePart($this->rawMessage)) {
+                $attachment = $this->parseAttachmentPart($this->rawMessage);
+                if ($attachment) {
+                    $attachments[] = $attachment;
                 }
             }
         }
@@ -204,40 +254,99 @@ class ProcessEmailReceiptJob implements ShouldQueue
         return $attachments;
     }
     
+    private function isImagePart($part)
+    {
+        // Check if this part contains image content
+        $imagePatterns = [
+            '/Content-Type:\s*image\//i',
+            '/Content-Disposition:.*attachment/i',
+            '/Content-Disposition:.*inline/i',
+            '/filename.*\.(jpe?g|png|gif|webp)/i',
+        ];
+        
+        foreach ($imagePatterns as $pattern) {
+            if (preg_match($pattern, $part)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     private function parseAttachmentPart($part)
     {
-        // Extract filename
-        if (preg_match('/filename[=: ]+(["\']?)([^"\'\r\n;]+)\1/i', $part, $matches)) {
-            $filename = $matches[2];
-        } else {
-            $filename = 'attachment_' . time();
+        // Extract filename - try multiple patterns
+        $filename = 'receipt_' . time() . '.jpg'; // default
+        
+        $filenamePatterns = [
+            '/filename[=: ]*["\']?([^"\'\r\n;]+)["\']?/i',
+            '/name[=: ]*["\']?([^"\'\r\n;]+)["\']?/i',
+        ];
+        
+        foreach ($filenamePatterns as $pattern) {
+            if (preg_match($pattern, $part, $matches)) {
+                $filename = trim($matches[1], '"\'');
+                break;
+            }
         }
         
         // Extract content type
+        $contentType = 'image/jpeg'; // default
         if (preg_match('/Content-Type:\s*([^\r\n;]+)/i', $part, $matches)) {
             $contentType = trim($matches[1]);
-        } else {
-            $contentType = 'application/octet-stream';
         }
         
-        // Extract content (very basic - just get everything after double newline)
-        $parts = preg_split('/\r?\n\r?\n/', $part, 2);
-        if (count($parts) > 1) {
-            $content = trim($parts[1]);
-            
-            // If base64 encoded, decode it
-            if (strpos($part, 'Content-Transfer-Encoding: base64') !== false) {
-                $content = base64_decode($content);
+        // Extract encoding
+        $encoding = null;
+        if (preg_match('/Content-Transfer-Encoding:\s*([^\r\n]+)/i', $part, $matches)) {
+            $encoding = trim($matches[1]);
+        }
+        
+        // Extract content - look for double newline separator
+        $contentStart = strpos($part, "\r\n\r\n");
+        if ($contentStart === false) {
+            $contentStart = strpos($part, "\n\n");
+        }
+        
+        if ($contentStart === false) {
+            Log::warning('🔍 Could not find content separator in part');
+            return null;
+        }
+        
+        $content = substr($part, $contentStart + (strpos($part, "\r\n\r\n") !== false ? 4 : 2));
+        $content = trim($content);
+        
+        // Remove any trailing boundary markers
+        $content = preg_replace('/--[a-zA-Z0-9_-]+--?\s*$/', '', $content);
+        $content = trim($content);
+        
+        // Decode based on encoding
+        if ($encoding && strtolower($encoding) === 'base64') {
+            $decodedContent = base64_decode($content);
+            if ($decodedContent === false) {
+                Log::warning('🔍 Failed to decode base64 content');
+                return null;
             }
-            
-            return [
-                'filename' => $filename,
-                'content_type' => $contentType,
-                'content' => $content,
-            ];
+            $content = $decodedContent;
+        } elseif ($encoding && strtolower($encoding) === 'quoted-printable') {
+            $content = quoted_printable_decode($content);
         }
         
-        return null;
+        // Validate we have actual content
+        if (empty($content) || strlen($content) < 100) {
+            Log::warning('🔍 Content too small or empty', [
+                'content_length' => strlen($content),
+                'encoding' => $encoding,
+            ]);
+            return null;
+        }
+        
+        return [
+            'filename' => $filename,
+            'content_type' => $contentType,
+            'content' => $content,
+            'encoding' => $encoding,
+        ];
     }
 
     public function failed(\Throwable $exception): void
@@ -246,6 +355,7 @@ class ProcessEmailReceiptJob implements ShouldQueue
             'user_id' => $this->user->id,
             'email' => $this->email,
             'exception' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString(),
         ]);
     }
 }
