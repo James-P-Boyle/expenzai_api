@@ -57,7 +57,7 @@ class ReceiptResource extends Resource
                 Tables\Columns\TextColumn::make('user.email')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\BadgeColumn::make('status')
+                 Tables\Columns\TextColumn::make('status')
                     ->colors([
                         'secondary' => 'pending',
                         'warning' => 'processing',
@@ -65,7 +65,7 @@ class ReceiptResource extends Resource
                         'danger' => 'failed',
                     ])
                     ->sortable(),
-                Tables\Columns\BadgeColumn::make('source')
+                 Tables\Columns\TextColumn::make('source')
                     ->colors([
                         'primary' => 'upload',
                         'success' => 'email',
