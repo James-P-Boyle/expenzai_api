@@ -81,12 +81,6 @@ class UserResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\TextColumn::make('receipt_email_address')
-                    ->label('Receipt Email')
-                    ->placeholder('Not generated')
-                    ->copyable()
-                    ->copyMessage('Receipt email copied!')
-                    ->toggleable(),
                 Tables\Columns\IconColumn::make('email_verified_at')
                     ->boolean()
                     ->label('Verified')
@@ -108,9 +102,6 @@ class UserResource extends Resource
                     ]),
                 Tables\Filters\TernaryFilter::make('email_verified_at')
                     ->label('Email Verified')
-                    ->nullable(),
-                Tables\Filters\TernaryFilter::make('receipt_email_address')
-                    ->label('Has Receipt Email')
                     ->nullable(),
             ])
             ->actions([
