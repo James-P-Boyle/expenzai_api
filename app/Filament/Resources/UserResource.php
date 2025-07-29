@@ -80,66 +80,13 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('id')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('user_tier')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('user_tier')
-                    ->options([
-                        'free' => 'Free',
-                        'pro' => 'Pro',
-                    ]),
-                SelectFilter::make('email_verified')
-                    ->query(fn (Builder $query): Builder => $query->whereNotNull('email_verified_at'))
-                    ->label('Email Verified'),
-                SelectFilter::make('email_receipts_enabled')
-                    ->query(fn (Builder $query): Builder => $query->where('email_receipts_enabled', true))
-                    ->label('Email Receipts Enabled'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Action::make('enableEmailReceipts')
-                    ->label('Enable Email Receipts')
-                    ->icon('heroicon-o-envelope')
-                    ->visible(fn ($record) => !$record->email_receipts_enabled && $record->getEffectiveTier() === 'pro')
-                    ->action(function ($record) {
-                        $emailAddress = $record->enableEmailReceipts();
-                        \Filament\Notifications\Notification::make()
-                            ->title('Email receipts enabled')
-                            ->body("Receipt email: {$emailAddress}")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('viewReceipts')
-                    ->label('View Receipts')
-                    ->icon('heroicon-o-document-text')
-                    ->url(fn ($record) => '/admin/receipts?tableFilters[user_id][value]=' . $record->id)
-                    ->openUrlInNewTab(),
-                Action::make('verifyEmail')
-                    ->label('Verify Email')
-                    ->icon('heroicon-o-check-badge')
-                    ->visible(fn ($record) => is_null($record->email_verified_at))
-                    ->action(function ($record) {
-                        $record->update(['email_verified_at' => now()]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('Email verified')
-                            ->body("User {$record->email} has been verified")
-                            ->success()
-                            ->send();
-                    }),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
             ]);
     }
 
