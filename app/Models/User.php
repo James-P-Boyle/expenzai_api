@@ -81,13 +81,14 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function canAccessPanel(Panel $panel): bool
     {
-        $canAccess = $this->is_admin || $this->email === env('ADMIN_EMAIL', 'admin@expenzai.app');
-    
+        $adminEmail = env('ADMIN_EMAIL', 'admin@expenzai.app');
+        $canAccess = $this->is_admin || $this->email === $adminEmail;
+        
         Log::info('🔐 User Panel Access Check', [
-            'user_id' => $this->id,
-            'user_email' => $this->email,
-            'is_admin' => $this->is_admin,
-            'admin_email' => env('ADMIN_EMAIL', 'admin@expenzai.app'),
+            'user_id' => $this->id ?? 'no-user',
+            'user_email' => $this->email ?? 'no-email',
+            'is_admin' => $this->is_admin ?? false,
+            'admin_email' => $adminEmail,
             'can_access' => $canAccess,
             'panel_id' => $panel->getId(),
         ]);
