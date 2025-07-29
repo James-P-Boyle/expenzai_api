@@ -133,12 +133,8 @@ class ProcessEmailReceiptJob implements ShouldQueue
                 try {
                     $receipt = Receipt::create([
                         'user_id' => $this->user->id,
-                        'source' => 'email',
                         'image_path' => $path,
-                        'storage_disk' => 'public',
-                        'status' => 'pending',
-                        'email_subject' => $subject,
-                        'email_received_at' => now(),
+                        'status' => 'processing', // Valid enum value
                     ]);
 
                     Log::info('🧾 Receipt created successfully', [
