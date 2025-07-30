@@ -1,10 +1,6 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ItemController;
@@ -33,6 +29,11 @@ Route::post('/anonymous/upload/confirm', [S3UploadController::class, 'confirmUpl
 Route::get('/anonymous/receipts/{sessionId}', [ReceiptController::class, 'getAnonymousReceipts']);
 Route::get('/anonymous/receipts/{sessionId}/{receiptId}', [ReceiptController::class, 'getAnonymousReceipt']);
 
+// Anonymous multi-upload routes
+Route::prefix('anonymous/{sessionId}')->group(function () {
+    Route::post('/receipts/multi-upload', [ReceiptController::class, 'multiUploadAnonymous']);
+});
+
 // Protected routes that don't require verification
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -46,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('upload.limits')->group(function () {
         Route::post('/upload/presigned-url', [S3UploadController::class, 'getPresignedUrl']);
         Route::post('/upload/confirm', [S3UploadController::class, 'confirmUpload']);
+        // Multi-upload route for authenticated users
+        Route::post('/receipts/multi-upload', [ReceiptController::class, 'multiUpload']);
     });
 
     // Receipt viewing (allow unverified - they can see their uploads)
@@ -96,57 +99,3 @@ Route::get('/health', function () {
         'service' => 'expenzai-api'
     ]);
 });
-
-Route::get('/create-admin', function() {
-    $adminEmail = env('ADMIN_EMAIL', 'admin@expenzai.app');
-    $adminPassword = env('ADMIN_PASSWORD', 'admin123change');
-    
-    if (User::where('email', $adminEmail)->exists()) {
-        return response()->json(['message' => 'Admin already exists']);
-    }
-    
-    $admin = \App\Models\User::create([
-        'name' => 'Admin',
-        'email' => $adminEmail,
-        'password' => bcrypt($adminPassword),
-        'email_verified_at' => now(),
-        'is_admin' => true,
-        'user_tier' => 'pro',
-    ]);
-    
-    return response()->json([
-        'message' => 'Admin created',
-        'email' => $adminEmail,
-        'password' => $adminPassword,
-        'login_url' => url('/admin')
-    ]);
-});
-// // DEBUG ROUTES 
-// Route::get('/debug/queue', function () {
-//     $pendingJobs = DB::table('jobs')->count();
-//     $failedJobs = DB::table('failed_jobs')->count();
-    
-//     return response()->json([
-//         'pending_jobs' => $pendingJobs,
-//         'failed_jobs' => $failedJobs,
-//         'queue_connection' => config('queue.default'),
-//     ]);
-// });
-// Route::get('/debug/failed-jobs', function () {
-//     $failedJobs = DB::table('failed_jobs')->get()->map(function ($job) {
-//         return [
-//             'id' => $job->id,
-//             'queue' => $job->queue,
-//             'exception' => substr($job->exception, 0, 500), // First 500 chars
-//             'failed_at' => $job->failed_at,
-//             'payload' => json_decode($job->payload, true)['displayName'] ?? 'Unknown'
-//         ];
-//     });
-    
-//     return response()->json($failedJobs);
-// });
-
-// Route::get('/test-logging', function () {
-//     Log::info('🔥 TEST LOG - Railway errorlog channel');
-//     return response()->json(['message' => 'Check Railway logs!']);
-// });

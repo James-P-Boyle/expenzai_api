@@ -222,4 +222,192 @@ class ReceiptController extends Controller
 
         return response()->json($receipt);
     }
+
+    public function multiUpload(Request $request)
+    {
+        try {
+            $request->validate([
+                'images' => 'required|array|min:1|max:10',
+                'images.*' => 'required|image|mimes:jpeg,png,jpg|max:10240',
+                'receipt_date' => 'nullable|date|before_or_equal:today'
+            ]);
+
+            $images = $request->file('images');
+            $receiptDate = $request->input('receipt_date') 
+                ? Carbon::parse($request->input('receipt_date'))
+                : Carbon::today();
+
+            $receipts = [];
+            $uploadedCount = 0;
+
+            foreach ($images as $image) {
+                try {
+                    // Store image
+                    $imagePath = $image->store('receipts', 'public');
+
+                    if (!$imagePath) {
+                        Log::warning('Failed to store image', [
+                            'user_id' => $request->user()->id,
+                            'filename' => $image->getClientOriginalName()
+                        ]);
+                        continue;
+                    }
+
+                    // Create receipt with custom date
+                    $receipt = $request->user()->receipts()->create([
+                        'image_path' => $imagePath,
+                        'status' => 'processing',
+                        'receipt_date' => $receiptDate,
+                        'week_of' => $receiptDate->startOfWeek(),
+                    ]);
+
+                    // Dispatch processing job with skip_date_extraction flag
+                    ProcessReceiptJob::dispatch($receipt, true); // true = skip date extraction
+
+                    $receipts[] = [
+                        'id' => $receipt->id,
+                        'status' => 'processing',
+                        'receipt_date' => $receiptDate->toDateString()
+                    ];
+
+                    $uploadedCount++;
+
+                    Log::info('Receipt uploaded with custom date', [
+                        'user_id' => $request->user()->id,
+                        'receipt_id' => $receipt->id,
+                        'custom_date' => $receiptDate->toDateString()
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('Failed to process individual image', [
+                        'error' => $e->getMessage(),
+                        'filename' => $image->getClientOriginalName()
+                    ]);
+                    continue;
+                }
+            }
+
+            if ($uploadedCount === 0) {
+                return response()->json([
+                    'message' => 'No receipts could be uploaded. Please try again.',
+                    'errors' => ['images' => ['All uploads failed']]
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => "{$uploadedCount} receipts uploaded successfully!",
+                'total_uploaded' => $uploadedCount,
+                'receipts' => $receipts
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Please check your uploads and try again.',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Multi-upload failed', [
+                'user_id' => $request->user()->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Upload failed. Please try again.',
+                'errors' => ['images' => ['Upload failed']]
+            ], 500);
+        }
+    }
+
+
+    public function multiUploadAnonymous(Request $request, $sessionId)
+    {
+        try {
+            // Check upload limit for anonymous users
+            $existingCount = Receipt::where('session_id', $sessionId)
+                                ->whereNull('user_id')
+                                ->count();
+
+            $newUploads = count($request->file('images') ?? []);
+            
+            if ($existingCount + $newUploads > 3) {
+                return response()->json([
+                    'message' => 'Upload limit reached. You can upload maximum 3 receipts.',
+                    'errors' => ['images' => ['upload_limit_reached']],
+                    'signup_prompt' => 'Sign up for unlimited uploads!'
+                ], 422);
+            }
+
+            $request->validate([
+                'images' => 'required|array|min:1|max:3',
+                'images.*' => 'required|image|mimes:jpeg,png,jpg|max:10240',
+                'receipt_date' => 'nullable|date|before_or_equal:today'
+            ]);
+
+            $images = $request->file('images');
+            $receiptDate = $request->input('receipt_date') 
+                ? Carbon::parse($request->input('receipt_date'))
+                : Carbon::today();
+
+            $receipts = [];
+            $uploadedCount = 0;
+
+            foreach ($images as $image) {
+                try {
+                    $imagePath = $image->store('receipts/anonymous', 'public');
+
+                    if (!$imagePath) {
+                        continue;
+                    }
+
+                    $receipt = Receipt::create([
+                        'session_id' => $sessionId,
+                        'image_path' => $imagePath,
+                        'status' => 'processing',
+                        'receipt_date' => $receiptDate,
+                        'week_of' => $receiptDate->startOfWeek(),
+                    ]);
+
+                    ProcessReceiptJob::dispatch($receipt, true); // Skip date extraction
+
+                    $receipts[] = [
+                        'id' => $receipt->id,
+                        'status' => 'processing',
+                        'receipt_date' => $receiptDate->toDateString()
+                    ];
+
+                    $uploadedCount++;
+
+                } catch (\Exception $e) {
+                    Log::error('Anonymous upload failed for individual image', [
+                        'error' => $e->getMessage(),
+                        'session_id' => $sessionId
+                    ]);
+                    continue;
+                }
+            }
+
+            $totalCount = $existingCount + $uploadedCount;
+            $remainingUploads = max(0, 3 - $totalCount);
+
+            return response()->json([
+                'message' => "{$uploadedCount} receipts uploaded successfully!",
+                'total_uploaded' => $uploadedCount,
+                'receipts' => $receipts,
+                'remaining_uploads' => $remainingUploads,
+                'signup_prompt' => $remainingUploads === 0 ? 'Upload limit reached! Sign up for unlimited uploads.' : null
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Anonymous multi-upload failed', [
+                'session_id' => $sessionId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Upload failed. Please try again.',
+                'errors' => ['images' => ['Upload failed']]
+            ], 500);
+        }
+    }
 }

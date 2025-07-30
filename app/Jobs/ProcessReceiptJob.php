@@ -23,13 +23,15 @@ class ProcessReceiptJob implements ShouldQueue
     public $tries = 3; 
 
     public function __construct(
-        public Receipt $receipt
+        public Receipt $receipt,
+        public bool $skipDateExtraction = false
     ) {}
 
     public function handle(): void
     {
         Log::info('ProcessReceiptJob started', [
             'receipt_id' => $this->receipt->id,
+            'skip_date_extraction' => $this->skipDateExtraction,
             'attempt' => $this->attempts(),
             'max_tries' => $this->tries,
             'timeout' => $this->timeout,
@@ -37,6 +39,7 @@ class ProcessReceiptJob implements ShouldQueue
                 'image_path' => $this->receipt->image_path,
                 'storage_disk' => $this->receipt->storage_disk,
                 'status' => $this->receipt->status,
+                'receipt_date' => $this->receipt->receipt_date,
             ],
             'config_check' => [
                 'openai_key_set' => !empty(config('services.openai.api_key')),
@@ -62,7 +65,8 @@ class ProcessReceiptJob implements ShouldQueue
             Log::info('About to call OpenAI API', [
                 'receipt_id' => $this->receipt->id,
                 'image_size_bytes' => strlen($base64Image),
-                'model' => 'gpt-4o'
+                'model' => 'gpt-4o',
+                'skip_date_extraction' => $this->skipDateExtraction
             ]);
 
             try {
@@ -290,6 +294,38 @@ class ProcessReceiptJob implements ShouldQueue
 
     private function getPrompt(): string
     {
+        if ($this->skipDateExtraction) {
+            return "
+            Analyze this receipt image and extract the following information in JSON format:
+
+            {
+                \"store_name\": \"Store name from receipt\",
+                \"total_amount\": 0.00,
+                \"items\": [
+                    {
+                        \"name\": \"Item name\",
+                        \"price\": 0.00,
+                        \"category\": \"Food & Groceries|Household|Personal Care|Beverages|Snacks|Meat & Deli|Dairy|Vegetables|Fruits|Other\",
+                        \"is_uncertain\": false
+                    }
+                ]
+            }
+
+            Rules:
+            1. Extract ALL items with their individual prices
+            2. Categorize each item into one of the predefined categories
+            3. Set 'is_uncertain' to true if you're not confident about the category
+            4. Use decimal format for prices (e.g., 3.79, not 379)
+            5. If you can't read an item name clearly, still include it but mark as uncertain
+            6. Skip any deposit (PFAND) entries - these are not actual purchases
+            7. DO NOT extract the receipt date - it will be provided separately
+            8. Return ONLY the JSON, no additional text
+
+            Be very careful with price extraction and make sure the total matches the sum of individual items.
+            ";
+        }
+
+        // Original prompt with date extraction
         return "
         Analyze this receipt image and extract the following information in JSON format:
 
@@ -325,6 +361,7 @@ class ProcessReceiptJob implements ShouldQueue
         try {
             Log::info('Starting to parse AI response', [
                 'receipt_id' => $this->receipt->id,
+                'skip_date_extraction' => $this->skipDateExtraction,
                 'response_length' => strlen($aiResponse)
             ]);
             
@@ -366,20 +403,47 @@ class ProcessReceiptJob implements ShouldQueue
                 'items_count' => isset($data['items']) ? count($data['items']) : 0
             ]);
             
-            // Update receipt with extracted data
-            $this->receipt->update([
+            // Prepare update data
+            $updateData = [
                 'store_name' => $data['store_name'] ?? null,
-                'receipt_date' => isset($data['receipt_date']) ? Carbon::parse($data['receipt_date']) : null,
                 'total_amount' => $data['total_amount'] ?? null,
-                'week_of' => isset($data['receipt_date']) 
-                    ? Carbon::parse($data['receipt_date'])->startOfWeek() 
-                    : Carbon::now()->startOfWeek(),
-            ]);
+            ];
+
+            // Only update date if we're not skipping extraction and date was extracted
+            if (!$this->skipDateExtraction && isset($data['receipt_date'])) {
+                try {
+                    $extractedDate = Carbon::parse($data['receipt_date']);
+                    $updateData['receipt_date'] = $extractedDate;
+                    $updateData['week_of'] = $extractedDate->copy()->startOfWeek();
+                    
+                    Log::info('Date extracted from AI', [
+                        'receipt_id' => $this->receipt->id,
+                        'extracted_date' => $extractedDate->toDateString()
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to parse extracted date, keeping existing', [
+                        'receipt_id' => $this->receipt->id,
+                        'extracted_date' => $data['receipt_date'] ?? 'null',
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                Log::info('Date extraction skipped or no date in response', [
+                    'receipt_id' => $this->receipt->id,
+                    'skip_date_extraction' => $this->skipDateExtraction,
+                    'has_date_in_response' => isset($data['receipt_date']),
+                    'current_receipt_date' => $this->receipt->receipt_date
+                ]);
+            }
+
+            $this->receipt->update($updateData);
     
             Log::info('Receipt data updated', [
                 'receipt_id' => $this->receipt->id,
                 'store_name' => $data['store_name'] ?? null,
-                'total_amount' => $data['total_amount'] ?? null
+                'total_amount' => $data['total_amount'] ?? null,
+                'date_skipped' => $this->skipDateExtraction,
+                'final_receipt_date' => $this->receipt->fresh()->receipt_date
             ]);
     
             // Store items
