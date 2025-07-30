@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ReceiptController extends Controller
 {
@@ -173,6 +174,80 @@ class ReceiptController extends Controller
         $receipt->load(['items']);
 
         return response()->json($receipt);
+    }
+
+    public function update(Request $request, Receipt $receipt)
+    {
+        Gate::authorize('update', $receipt);
+
+        try {
+            $request->validate([
+                'receipt_date' => 'nullable|date|before_or_equal:today',
+                'store_name' => 'nullable|string|max:255',
+                'total_amount' => 'nullable|numeric|min:0'
+            ]);
+
+            $updateData = [];
+
+            // Handle date update
+            if ($request->has('receipt_date')) {
+                $newDate = $request->input('receipt_date');
+                if ($newDate) {
+                    $parsedDate = Carbon::parse($newDate);
+                    $updateData['receipt_date'] = $parsedDate;
+                    $updateData['week_of'] = $parsedDate->copy()->startOfWeek();
+                }
+            }
+
+            if ($request->has('store_name')) {
+                $updateData['store_name'] = $request->input('store_name');
+            }
+
+            if ($request->has('total_amount')) {
+                $updateData['total_amount'] = $request->input('total_amount');
+            }
+
+            if (empty($updateData)) {
+                return response()->json([
+                    'message' => 'No valid fields to update.',
+                    'errors' => ['general' => ['No valid data provided']]
+                ], 422);
+            }
+
+            $receipt->update($updateData);
+
+            Log::info('Receipt updated', [
+                'user_id' => $request->user()->id,
+                'receipt_id' => $receipt->id,
+                'updated_fields' => array_keys($updateData),
+                'new_date' => $updateData['receipt_date'] ?? null
+            ]);
+
+            $receipt->load(['items']);
+
+            return response()->json([
+                'data' => $receipt,
+                'message' => 'Receipt updated successfully!'
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Please check your input and try again.',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Receipt update failed', [
+                'user_id' => $request->user()->id,
+                'receipt_id' => $receipt->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to update receipt. Please try again.',
+                'errors' => ['general' => ['Update failed']]
+            ], 500);
+        }
     }
 
     public function destroy(Receipt $receipt)
